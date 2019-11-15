@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/kong/go-pdk"
@@ -12,6 +13,7 @@ import (
 	"plugin"
 	"reflect"
 	"strings"
+	"sync"
 )
 
 var socket = flag.String("socket", "", "Socket to listen into")
@@ -40,7 +42,7 @@ func main() {
 			return
 		}
 
-		rpc.RegisterName("plugin", &PluginServer{ plugins: make(map[string]pluginData) })
+		rpc.RegisterName("plugin", newServer())
 
 		runServer(listener)
 	}
@@ -48,8 +50,9 @@ func main() {
 
 // --- pluginData  --- //
 type pluginData struct {
+	name        string
 	code        *plugin.Plugin
-	initialized bool
+	constructor func() interface{}
 	config      interface{}
 	handlers    map[string]func(kong *pdk.PDK)
 }
@@ -66,7 +69,7 @@ type (
 
 func (plug *pluginData) setHandlers() {
 	handlers := map[string]func(kong *pdk.PDK){}
-	config := plug.config
+	config := plug.constructor()
 
 	if h, ok := config.(certificater); ok { handlers["certificate"]   = h.Certificate  }
 	if h, ok := config.(rewriter)    ; ok { handlers["rewrite"]       = h.Rewrite      }
@@ -79,21 +82,45 @@ func (plug *pluginData) setHandlers() {
 	plug.handlers = handlers
 }
 
+// --- instanceData --- //
+type instanceData struct {
+	id          int
+	plugin      *pluginData
+	initialized bool
+	config      interface{}
+	ipc         chan string
+	pdk         *pdk.PDK
+}
+
 // --- PluginServer --- //
 type PluginServer struct {
+	lock       sync.RWMutex
 	pluginsDir string
-	plugins    map[string]pluginData
+	nextId     int
+	plugins    map[string]*pluginData
+	instances  map[int]instanceData
+}
+
+func newServer() *PluginServer {
+	return &PluginServer{
+		plugins:   map[string]*pluginData{},
+		instances: map[int]instanceData{},
+	}
 }
 
 /// exported method
 func (s *PluginServer) SetPluginDir(dir string, reply *string) error {
+	s.lock.Lock()
 	s.pluginsDir = dir
+	s.lock.Unlock()
 	*reply = "ok"
 	return nil
 }
 
-func (s PluginServer) loadPlugin(name string) (plug pluginData, err error) {
+func (s PluginServer) loadPlugin(name string) (plug *pluginData, err error) {
+	s.lock.RLock()
 	plug, ok := s.plugins[name]
+	s.lock.RUnlock()
 	if ok {
 		return
 	}
@@ -109,19 +136,25 @@ func (s PluginServer) loadPlugin(name string) (plug pluginData, err error) {
 		err = fmt.Errorf("No constructor function on plugin %s: %w", name, err)
 		return
 	}
+
 	constructor, ok := constructorSymbol.(func() interface{})
 	if !ok {
 		err = fmt.Errorf("Wrong constructor signature on plugin %s: %w", name, err)
 		return
 	}
 
-	plug = pluginData{
-		code:   code,
-		config: constructor(),
+	plug = &pluginData{
+		name:        name,
+		code:        code,
+		constructor: constructor,
+		config:      constructor(),
 	}
 	plug.setHandlers()
 
+	s.lock.Lock()
 	s.plugins[name] = plug
+	s.lock.Unlock()
+
 	return
 }
 
@@ -190,14 +223,13 @@ type PluginInfo struct {
 }
 
 /// exported method
-func (s *PluginServer) GetPluginInfo(name string, info *PluginInfo) error {
-
+func (s PluginServer) GetPluginInfo(name string, info *PluginInfo) error {
 	plug, err := s.loadPlugin(name)
 	if err != nil {
 		return err
 	}
 
-	*info = PluginInfo{ Name: name }
+	*info = PluginInfo{Name: name}
 
 	info.Phases = make([]string, len(plug.handlers))
 	var i = 0
@@ -227,6 +259,74 @@ func (s *PluginServer) GetPluginInfo(name string, info *PluginInfo) error {
 	out.WriteString(`}}]}`)
 
 	info.Schema = out.String()
+
+	return nil
+}
+
+type PluginConfig struct {
+	Name   string
+	Config []byte
+}
+
+type InstanceStatus struct {
+	Name   string
+	Id     int
+	Config interface{}
+}
+
+/// exported method
+func (s *PluginServer) StartInstance(config PluginConfig, status *InstanceStatus) error {
+	plug, err := s.loadPlugin(config.Name)
+	if err != nil {
+		return err
+	}
+
+	instanceConfig := plug.constructor()
+
+	if err := json.Unmarshal(config.Config, instanceConfig); err != nil {
+		return fmt.Errorf("Decoding config: %w", err)
+	}
+
+	instance := instanceData{
+		id:     s.nextId,
+		plugin: plug,
+		config: instanceConfig,
+	}
+
+	s.lock.Lock()
+	s.nextId++
+	s.instances[instance.id] = instance
+	s.lock.Unlock()
+
+	*status = InstanceStatus{
+		Name:   config.Name,
+		Id:     instance.id,
+		Config: instance.config,
+	}
+
+	return nil
+}
+
+/// exported method
+func (s PluginServer) CloseInstance(id int, status *InstanceStatus) error {
+	s.lock.RLock()
+	instance, ok := s.instances[id]
+	s.lock.RUnlock()
+	if !ok {
+		return fmt.Errorf("No plugin instance %d", id)
+	}
+
+	*status = InstanceStatus{
+		Name:   instance.plugin.name,
+		Id:     instance.id,
+		Config: instance.config,
+	}
+
+	// kill?
+
+	s.lock.Lock()
+	delete(s.instances, id)
+	s.lock.Unlock()
 
 	return nil
 }
