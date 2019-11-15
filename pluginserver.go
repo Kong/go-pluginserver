@@ -19,18 +19,15 @@ var socket = flag.String("socket", "", "Socket to listen into")
 func runServer(listener net.Listener) {
 	var handle codec.MsgpackHandle
 
-	go func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				log.Printf("accept(): %s", err)
-				return
-			}
-			// rpcCodec := codec.GoRpc.ServerCodec(conn, &handle)
-			rpcCodec := codec.MsgpackSpecRpc.ServerCodec(conn, &handle)
-			rpc.ServeCodec(rpcCodec)
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			log.Printf("accept(): %s", err)
+			return
 		}
-	}()
+		rpcCodec := codec.MsgpackSpecRpc.ServerCodec(conn, &handle)
+		rpc.ServeCodec(rpcCodec)
+	}
 }
 
 func main() {
@@ -43,7 +40,7 @@ func main() {
 			return
 		}
 
-		rpc.RegisterName("plugin", &PluginServer{})
+		rpc.RegisterName("plugin", &PluginServer{ plugins: make(map[string]pluginData) })
 
 		runServer(listener)
 	}
@@ -185,39 +182,38 @@ func getSchemaType(t reflect.Type) (string, bool) {
 }
 
 type PluginInfo struct {
-	name     string
-	phases   []string
-	version  string
-	priority int
-	schema   string
+	Name     string
+	Phases   []string
+	Version  string
+	Priority int
+	Schema   string
 }
 
 /// exported method
 func (s *PluginServer) GetPluginInfo(name string, info *PluginInfo) error {
-	info.name = name
 
 	plug, err := s.loadPlugin(name)
 	if err != nil {
 		return err
 	}
 
-	*info = PluginInfo{}
+	*info = PluginInfo{ Name: name }
 
-	info.phases = make([]string, len(plug.handlers))
+	info.Phases = make([]string, len(plug.handlers))
 	var i = 0
 	for name := range plug.handlers {
-		info.phases[i] = name
+		info.Phases[i] = name
 		i++
 	}
 
 	v, _ := plug.code.Lookup("Version")
 	if v != nil {
-		info.version = v.(string)
+		info.Version = v.(string)
 	}
 
 	prio, _ := plug.code.Lookup("Priority")
 	if prio != nil {
-		info.priority = prio.(int)
+		info.Priority = prio.(int)
 	}
 
 	var out strings.Builder
@@ -230,7 +226,7 @@ func (s *PluginServer) GetPluginInfo(name string, info *PluginInfo) error {
 
 	out.WriteString(`}}]}`)
 
-	info.schema = out.String()
+	info.Schema = out.String()
 
 	return nil
 }
