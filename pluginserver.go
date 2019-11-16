@@ -292,31 +292,20 @@ func (s *PluginServer) StartInstance(config PluginConfig, status *InstanceStatus
 		id:     s.nextId,
 		plugin: plug,
 		config: instanceConfig,
+		handlers: getHandlers(instanceConfig),
 		ipc:    ipc,
 		pdk:    pdk.Init(ipc),
 	}
 
 	//log.Printf("Will launch goroutine for key %d / operation %s\n", key, op)
 	go func() {
-		_ = <-ipc
+		in := <-ipc
 
-		//if run == "run" {
-		//	//log.Printf("Received run as expected: %s\n", run)
-		//} else {
-		//	//log.Printf("Unexpected message: %s\n", run)
-		//}
-
-// 		if !plug.initialized {
-// 			init, _ := plug.code.Lookup("Init")
-// 			if init != nil {
-// 				//log.Printf("will call Init\n")
-// 				init.(func(*pdk.PDK))(conn.pdk)
-// 			}
-// 			plug.initialized = true
-// 		}
-
-// 		plug.tryEvent(op, conn.pdk)
-// 		conn.Done()
+		if h, ok := instance.handlers[in]; ok {
+			h(instance.pdk)
+		} else {
+			log.Printf("undefined method '%s' (%s[%d])", in, plug.name, instance.id)
+		}
 		ipc <- "ret"
 	}()
 
@@ -376,25 +365,25 @@ func (s PluginServer) CloseInstance(id int, status *InstanceStatus) error {
 }
 
 
-type StepIn struct {
-	instanceId int
-	method string
-	params interface{}
+type StepData struct {
+	InstanceId int
+	Data string
+// 	Params interface{}
 }
 
-type StepOut struct {
-	callback string
-	params interface{}
-}
 
 /// exported method
-func (s PluginServer) Step(in StepIn, out *StepOut) error {
+func (s PluginServer) Step(in StepData, out *StepData) error {
 	s.lock.RLock()
-	instance, ok := s.instances[in.instanceId]
+	instance, ok := s.instances[in.InstanceId]
 	s.lock.RUnlock()
 	if !ok {
-		return fmt.Errorf("No plugin instance %d", in.instanceId)
+		return fmt.Errorf("No plugin instance %d", in.InstanceId)
 	}
+
+	instance.ipc <- in.Data
+	outStr := <-instance.ipc
+	*out = StepData{ Data: outStr }	// TODO: decode outStr
 
 	return nil
 }
