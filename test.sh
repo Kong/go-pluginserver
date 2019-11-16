@@ -1,5 +1,9 @@
 #!/bin/bash
 
+if [ "$1" == "-v" ]; then
+	VERBOSE='true'
+fi
+
 SOCKET='sock'
 
 if pgrep go-pluginserver -l; then
@@ -11,8 +15,10 @@ else
 fi
 
 msg() {
+	[ -v VERBOSE ] && rq <<< "$1"
 	METHOD="$(rq <<< "$1" -- 'at([2])')"
 	response="$(rq <<< "$1" -M | nc -U "$SOCKET" -N | rq -m)"
+	[ -v VERBOSE ] && rq <<< "$response"
 
 	ERROR="$(rq <<< "$response" -- 'at [2] ')"
 	RESULT="$(rq <<< "$response" -- 'at [3] ')"

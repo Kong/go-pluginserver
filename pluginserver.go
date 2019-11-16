@@ -54,7 +54,17 @@ type pluginData struct {
 	code        *plugin.Plugin
 	constructor func() interface{}
 	config      interface{}
+}
+
+// --- instanceData --- //
+type instanceData struct {
+	id          int
+	plugin      *pluginData
+	initialized bool
+	config      interface{}
 	handlers    map[string]func(kong *pdk.PDK)
+	ipc         chan string
+	pdk         *pdk.PDK
 }
 
 type (
@@ -67,9 +77,8 @@ type (
 	logger       interface{ Log(*pdk.PDK) }
 )
 
-func (plug *pluginData) setHandlers() {
+func getHandlers(config interface{}) map[string]func(kong *pdk.PDK) {
 	handlers := map[string]func(kong *pdk.PDK){}
-	config := plug.constructor()
 
 	if h, ok := config.(certificater); ok { handlers["certificate"]   = h.Certificate  }
 	if h, ok := config.(rewriter)    ; ok { handlers["rewrite"]       = h.Rewrite      }
@@ -79,17 +88,7 @@ func (plug *pluginData) setHandlers() {
 	if h, ok := config.(prereader)   ; ok { handlers["preread"]       = h.Preread      }
 	if h, ok := config.(logger)      ; ok { handlers["log"]           = h.Log          }
 
-	plug.handlers = handlers
-}
-
-// --- instanceData --- //
-type instanceData struct {
-	id          int
-	plugin      *pluginData
-	initialized bool
-	config      interface{}
-	ipc         chan string
-	pdk         *pdk.PDK
+	return handlers
 }
 
 // --- PluginServer --- //
@@ -149,7 +148,6 @@ func (s PluginServer) loadPlugin(name string) (plug *pluginData, err error) {
 		constructor: constructor,
 		config:      constructor(),
 	}
-	plug.setHandlers()
 
 	s.lock.Lock()
 	s.plugins[name] = plug
@@ -159,7 +157,6 @@ func (s PluginServer) loadPlugin(name string) (plug *pluginData, err error) {
 }
 
 func getSchemaType(t reflect.Type) (string, bool) {
-	//log.Printf("SCHEMA TYPE FOR T IS %s\n", t.String())
 	switch t.Kind() {
 	case reflect.String:
 		return `"string"`, true
@@ -231,9 +228,11 @@ func (s PluginServer) GetPluginInfo(name string, info *PluginInfo) error {
 
 	*info = PluginInfo{Name: name}
 
-	info.Phases = make([]string, len(plug.handlers))
+	handlers := getHandlers(plug.config)
+
+	info.Phases = make([]string, len(handlers))
 	var i = 0
-	for name := range plug.handlers {
+	for name := range handlers {
 		info.Phases[i] = name
 		i++
 	}
@@ -287,11 +286,39 @@ func (s *PluginServer) StartInstance(config PluginConfig, status *InstanceStatus
 		return fmt.Errorf("Decoding config: %w", err)
 	}
 
+	ipc := make(chan string)
+
 	instance := instanceData{
 		id:     s.nextId,
 		plugin: plug,
 		config: instanceConfig,
+		ipc:    ipc,
+		pdk:    pdk.Init(ipc),
 	}
+
+	//log.Printf("Will launch goroutine for key %d / operation %s\n", key, op)
+	go func() {
+		_ = <-ipc
+
+		//if run == "run" {
+		//	//log.Printf("Received run as expected: %s\n", run)
+		//} else {
+		//	//log.Printf("Unexpected message: %s\n", run)
+		//}
+
+// 		if !plug.initialized {
+// 			init, _ := plug.code.Lookup("Init")
+// 			if init != nil {
+// 				//log.Printf("will call Init\n")
+// 				init.(func(*pdk.PDK))(conn.pdk)
+// 			}
+// 			plug.initialized = true
+// 		}
+
+// 		plug.tryEvent(op, conn.pdk)
+// 		conn.Done()
+		ipc <- "ret"
+	}()
 
 	s.lock.Lock()
 	s.nextId++
@@ -300,6 +327,23 @@ func (s *PluginServer) StartInstance(config PluginConfig, status *InstanceStatus
 
 	*status = InstanceStatus{
 		Name:   config.Name,
+		Id:     instance.id,
+		Config: instance.config,
+	}
+
+	return nil
+}
+
+func (s PluginServer) InstanceStatus(id int, status *InstanceStatus) error {
+	s.lock.RLock()
+	instance, ok := s.instances[id]
+	s.lock.RUnlock()
+	if !ok {
+		return fmt.Errorf("No plugin instance %d", id)
+	}
+
+	*status = InstanceStatus{
+		Name:   instance.plugin.name,
 		Id:     instance.id,
 		Config: instance.config,
 	}
@@ -327,6 +371,30 @@ func (s PluginServer) CloseInstance(id int, status *InstanceStatus) error {
 	s.lock.Lock()
 	delete(s.instances, id)
 	s.lock.Unlock()
+
+	return nil
+}
+
+
+type StepIn struct {
+	instanceId int
+	method string
+	params interface{}
+}
+
+type StepOut struct {
+	callback string
+	params interface{}
+}
+
+/// exported method
+func (s PluginServer) Step(in StepIn, out *StepOut) error {
+	s.lock.RLock()
+	instance, ok := s.instances[in.instanceId]
+	s.lock.RUnlock()
+	if !ok {
+		return fmt.Errorf("No plugin instance %d", in.instanceId)
+	}
 
 	return nil
 }
