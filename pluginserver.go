@@ -63,8 +63,6 @@ type instanceData struct {
 	initialized bool
 	config      interface{}
 	handlers    map[string]func(kong *pdk.PDK)
-	ipc         chan string
-	pdk         *pdk.PDK
 }
 
 type (
@@ -93,17 +91,20 @@ func getHandlers(config interface{}) map[string]func(kong *pdk.PDK) {
 
 // --- PluginServer --- //
 type PluginServer struct {
-	lock       sync.RWMutex
-	pluginsDir string
-	nextId     int
-	plugins    map[string]*pluginData
-	instances  map[int]instanceData
+	lock           sync.RWMutex
+	pluginsDir     string
+	plugins        map[string]*pluginData
+	instances      map[int]*instanceData
+	events         map[int]*eventData
+	nextInstanceId int
+	nextEventId    int
 }
 
 func newServer() *PluginServer {
 	return &PluginServer{
 		plugins:   map[string]*pluginData{},
-		instances: map[int]instanceData{},
+		instances: map[int]*instanceData{},
+		events:    map[int]*eventData{},
 	}
 }
 
@@ -286,32 +287,16 @@ func (s *PluginServer) StartInstance(config PluginConfig, status *InstanceStatus
 		return fmt.Errorf("Decoding config: %w", err)
 	}
 
-	ipc := make(chan string)
-
 	instance := instanceData{
-		id:     s.nextId,
-		plugin: plug,
-		config: instanceConfig,
+		plugin:   plug,
+		config:   instanceConfig,
 		handlers: getHandlers(instanceConfig),
-		ipc:    ipc,
-		pdk:    pdk.Init(ipc),
 	}
 
-	//log.Printf("Will launch goroutine for key %d / operation %s\n", key, op)
-	go func() {
-		in := <-ipc
-
-		if h, ok := instance.handlers[in]; ok {
-			h(instance.pdk)
-		} else {
-			log.Printf("undefined method '%s' (%s[%d])", in, plug.name, instance.id)
-		}
-		ipc <- "ret"
-	}()
-
 	s.lock.Lock()
-	s.nextId++
-	s.instances[instance.id] = instance
+	instance.id = s.nextInstanceId
+	s.nextInstanceId++
+	s.instances[instance.id] = &instance
 	s.lock.Unlock()
 
 	*status = InstanceStatus{
@@ -364,16 +349,20 @@ func (s PluginServer) CloseInstance(id int, status *InstanceStatus) error {
 	return nil
 }
 
-
-type StepData struct {
-	InstanceId int
-	Data string
-// 	Params interface{}
+type eventData struct {
+	id       int
+	instance *instanceData
+	ipc      chan string
+	pdk      *pdk.PDK
 }
 
+type StartEventData struct {
+	InstanceId int
+	EventName  string
+	// ....
+}
 
-/// exported method
-func (s PluginServer) Step(in StepData, out *StepData) error {
+func (s PluginServer) HandleEvent(in StartEventData, out *StepData) error {
 	s.lock.RLock()
 	instance, ok := s.instances[in.InstanceId]
 	s.lock.RUnlock()
@@ -381,9 +370,58 @@ func (s PluginServer) Step(in StepData, out *StepData) error {
 		return fmt.Errorf("No plugin instance %d", in.InstanceId)
 	}
 
-	instance.ipc <- in.Data
-	outStr := <-instance.ipc
-	*out = StepData{ Data: outStr }	// TODO: decode outStr
+	h, ok := instance.handlers[in.EventName]
+	if !ok {
+		return fmt.Errorf("undefined method %s on plugin %s",
+			in.EventName, instance.plugin.name)
+	}
+
+	ipc := make(chan string)
+
+	event := eventData{
+		instance: instance,
+		ipc:      ipc,
+		pdk:      pdk.Init(ipc),
+	}
+
+	s.lock.Lock()
+	event.id = s.nextEventId
+	s.nextEventId++
+	s.events[event.id] = &event
+	s.lock.Unlock()
+
+	//log.Printf("Will launch goroutine for key %d / operation %s\n", key, op)
+	go func() {
+		_ = <-ipc
+		h(event.pdk)
+		ipc <- "ret"
+
+		s.lock.Lock()
+		delete(s.events, event.id)
+		s.lock.Unlock()
+	}()
+
+	*out = StepData{EventId: event.id, Data: "ok"}
+	return nil
+}
+
+type StepData struct {
+	EventId int
+	Data    string
+}
+
+/// exported method
+func (s PluginServer) Step(in StepData, out *StepData) error {
+	s.lock.RLock()
+	event, ok := s.events[in.EventId]
+	s.lock.RUnlock()
+	if !ok {
+		return fmt.Errorf("No running event %d", in.EventId)
+	}
+
+	event.ipc <- in.Data
+	outStr := <-event.ipc
+	*out = StepData{Data: outStr} // TODO: decode outStr
 
 	return nil
 }
