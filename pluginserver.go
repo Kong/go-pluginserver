@@ -1,3 +1,5 @@
+// go-pluginserver is a standalone RPC server that runs
+// Go plugins for Kong.
 package main
 
 import (
@@ -49,6 +51,8 @@ func main() {
 }
 
 // --- PluginServer --- //
+
+// Holds the execution status of the plugin server.
 type PluginServer struct {
 	lock           sync.RWMutex
 	pluginsDir     string
@@ -59,6 +63,7 @@ type PluginServer struct {
 	nextEventId    int
 }
 
+// Create a new server context.
 func newServer() *PluginServer {
 	return &PluginServer{
 		plugins:   map[string]*pluginData{},
@@ -67,7 +72,9 @@ func newServer() *PluginServer {
 	}
 }
 
-/// exported method
+// SetPluginDir tells the server where to find the plugins.
+//
+// RPC exported method
 func (s *PluginServer) SetPluginDir(dir string, reply *string) error {
 	s.lock.Lock()
 	s.pluginsDir = dir
@@ -77,6 +84,7 @@ func (s *PluginServer) SetPluginDir(dir string, reply *string) error {
 }
 
 // --- pluginData  --- //
+
 type pluginData struct {
 	name        string
 	code        *plugin.Plugin
@@ -179,15 +187,19 @@ func getSchemaType(t reflect.Type) (string, bool) {
 	return "", false
 }
 
+// Information obtained from a plugin's compiled code.
 type PluginInfo struct {
-	Name     string
-	Phases   []string
-	Version  string
-	Priority int
-	Schema   string
+	Name     string   // plugin name
+	Phases   []string // events it can handle
+	Version  string   // version number
+	Priority int      // priority info
+	Schema   string   // JSON representation of the config schema
 }
 
-/// exported method
+// GetPluginInfo loads and retrieves information from the compiled plugin.
+// TODO: reload if the plugin code has been updated.
+//
+// RPC exported method
 func (s PluginServer) GetPluginInfo(name string, info *PluginInfo) error {
 	plug, err := s.loadPlugin(name)
 	if err != nil {
@@ -263,18 +275,24 @@ func getHandlers(config interface{}) map[string]func(kong *pdk.PDK) {
 	return handlers
 }
 
+// Configuration data for a new plugin instance.
 type PluginConfig struct {
-	Name   string
-	Config []byte
+	Name   string // plugin name
+	Config []byte // configuration data, as a JSON string
 }
 
+// Current state of a plugin instance.  TODO: add some statistics
 type InstanceStatus struct {
-	Name   string
-	Id     int
-	Config interface{}
+	Name   string      // plugin name
+	Id     int         // instance id
+	Config interface{} // configuration data, decoded
 }
 
-/// exported method
+// StartInstance starts a plugin instance, as requred by configuration data.  More than
+// one instance can be started for a single plugin.  If the configuration changes,
+// a new instance should be started and the old one closed.
+//
+// RPC exported method
 func (s *PluginServer) StartInstance(config PluginConfig, status *InstanceStatus) error {
 	plug, err := s.loadPlugin(config.Name)
 	if err != nil {
@@ -308,6 +326,9 @@ func (s *PluginServer) StartInstance(config PluginConfig, status *InstanceStatus
 	return nil
 }
 
+// InstanceStatus returns a given resource's status (the same given when started)
+//
+// RPC exported method
 func (s PluginServer) InstanceStatus(id int, status *InstanceStatus) error {
 	s.lock.RLock()
 	instance, ok := s.instances[id]
@@ -325,7 +346,13 @@ func (s PluginServer) InstanceStatus(id int, status *InstanceStatus) error {
 	return nil
 }
 
-/// exported method
+// CloseInstance is used when an instance shouldn't be used anymore.
+// Doesn't kill any running event but the instance is no longer accesible,
+// so it's not possible to start a new event with it and will be garbage
+// collected after the last reference event finishes.
+// Returns the status just before closing.
+//
+// RPC exported method
 func (s PluginServer) CloseInstance(id int, status *InstanceStatus) error {
 	s.lock.RLock()
 	instance, ok := s.instances[id]
@@ -349,19 +376,27 @@ func (s PluginServer) CloseInstance(id int, status *InstanceStatus) error {
 	return nil
 }
 
-type eventData struct {
-	id       int
-	instance *instanceData
-	ipc      chan string
-	pdk      *pdk.PDK
-}
-
+// Incoming data for a new event.
+// TODO: add some relevant data to reduce number of callbacks.
 type StartEventData struct {
-	InstanceId int
-	EventName  string
+	InstanceId int    // Instance ID to start the event
+	EventName  string // event name (not handler method name)
 	// ....
 }
 
+type eventData struct {
+	id       int           // event id
+	instance *instanceData // plugin instance
+	ipc      chan string   // communication channel (TODO: use decoded structs)
+	pdk      *pdk.PDK      // go-pdk instance
+}
+
+// HandleEvent starts the call/{callback/response}*/finish cycle.
+// More than one event can be run concurrenty for a single plugin instance,
+// they all receive the same object instance, so should be careful if it's
+// mutated or holds references to mutable data.
+//
+// RPC exported data
 func (s PluginServer) HandleEvent(in StartEventData, out *StepData) error {
 	s.lock.RLock()
 	instance, ok := s.instances[in.InstanceId]
@@ -405,12 +440,17 @@ func (s PluginServer) HandleEvent(in StartEventData, out *StepData) error {
 	return nil
 }
 
+// A callback's response/request.
+// TODO: use decoded structure instead of a JSON string.
 type StepData struct {
-	EventId int
-	Data    string
+	EventId int    // event cycle to which this belongs
+	Data    string // carried data
 }
 
-/// exported method
+// Step carries a callback's anser back from Kong to the plugin,
+// the return value is either a new callback request or a finish signal.
+//
+// RPC exported method
 func (s PluginServer) Step(in StepData, out *StepData) error {
 	s.lock.RLock()
 	event, ok := s.events[in.EventId]
