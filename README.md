@@ -1,6 +1,13 @@
 go-pluginserver
 ===
 
+Runs Kong plugins written in Go.  Implemented as a standalone MessagePack-RPC server.
+
+There's no explicid state associated with the client connections, so the same plugins,
+instances and even events could be shared with several clients, or a single client can
+use more than one connection from a pool.  For the same reason, plugin instances and
+events survive client disconnections.
+
 Pluginserver
 --
 
