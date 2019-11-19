@@ -45,17 +45,17 @@ func (s *PluginServer) SetPluginDir(dir string, reply *string) error {
 // --- pluginData  --- //
 
 type pluginData struct {
+	lock        sync.Mutex
 	name        string
 	code        *plugin.Plugin
 	constructor func() interface{}
 	config      interface{}
 }
 
-func (s PluginServer) loadPlugin(name string) (plug *pluginData, err error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
+func (s *PluginServer) loadPlugin(name string) (plug *pluginData, err error) {
+	s.lock.RLock()
 	plug, ok := s.plugins[name]
+	s.lock.RUnlock()
 	if ok {
 		return
 	}
@@ -85,7 +85,9 @@ func (s PluginServer) loadPlugin(name string) (plug *pluginData, err error) {
 		config:      constructor(),
 	}
 
+	s.lock.Lock()
 	s.plugins[name] = plug
+	s.lock.Unlock()
 
 	return
 }
@@ -166,6 +168,7 @@ func (s PluginServer) GetPluginInfo(name string, info *PluginInfo) error {
 
 	*info = PluginInfo{Name: name}
 
+	plug.lock.Lock()
 	handlers := getHandlers(plug.config)
 
 	info.Phases = make([]string, len(handlers))
@@ -194,6 +197,7 @@ func (s PluginServer) GetPluginInfo(name string, info *PluginInfo) error {
 	out.WriteString(st)
 
 	out.WriteString(`}}]}`)
+	plug.lock.Unlock()
 
 	info.Schema = out.String()
 
