@@ -90,7 +90,7 @@ func (s PluginServer) Step(in StepData, out *StepData) error {
 
 	event.ipc <- in.Data
 	outStr := <-event.ipc
-	*out = StepData{Data: outStr} // TODO: decode outStr
+	*out = StepData{EventId: in.EventId, Data: outStr} // TODO: decode outStr
 
 	return nil
 }
