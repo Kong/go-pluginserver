@@ -26,7 +26,7 @@ type eventData struct {
 // mutated or holds references to mutable data.
 //
 // RPC exported method
-func (s PluginServer) HandleEvent(in StartEventData, out *StepData) error {
+func (s *PluginServer) HandleEvent(in StartEventData, out *StepData) error {
 	s.lock.RLock()
 	instance, ok := s.instances[in.InstanceId]
 	s.lock.RUnlock()
@@ -80,7 +80,7 @@ type StepData struct {
 // the return value is either a new callback request or a finish signal.
 //
 // RPC exported method
-func (s PluginServer) Step(in StepData, out *StepData) error {
+func (s *PluginServer) Step(in StepData, out *StepData) error {
 	s.lock.RLock()
 	event, ok := s.events[in.EventId]
 	s.lock.RUnlock()

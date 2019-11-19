@@ -93,7 +93,7 @@ func (s *PluginServer) StartInstance(config PluginConfig, status *InstanceStatus
 // InstanceStatus returns a given resource's status (the same given when started)
 //
 // RPC exported method
-func (s PluginServer) InstanceStatus(id int, status *InstanceStatus) error {
+func (s *PluginServer) InstanceStatus(id int, status *InstanceStatus) error {
 	s.lock.RLock()
 	instance, ok := s.instances[id]
 	s.lock.RUnlock()
@@ -117,7 +117,7 @@ func (s PluginServer) InstanceStatus(id int, status *InstanceStatus) error {
 // Returns the status just before closing.
 //
 // RPC exported method
-func (s PluginServer) CloseInstance(id int, status *InstanceStatus) error {
+func (s *PluginServer) CloseInstance(id int, status *InstanceStatus) error {
 	s.lock.RLock()
 	instance, ok := s.instances[id]
 	s.lock.RUnlock()
