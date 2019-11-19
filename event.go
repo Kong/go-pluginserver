@@ -25,7 +25,7 @@ type eventData struct {
 // they all receive the same object instance, so should be careful if it's
 // mutated or holds references to mutable data.
 //
-// RPC exported data
+// RPC exported method
 func (s PluginServer) HandleEvent(in StartEventData, out *StepData) error {
 	s.lock.RLock()
 	instance, ok := s.instances[in.InstanceId]
