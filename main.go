@@ -14,6 +14,8 @@ var socket = flag.String("socket", "", "Socket to listen into")
 
 func runServer(listener net.Listener) {
 	var handle codec.MsgpackHandle
+	handle.ReaderBufferSize = 4096
+	handle.WriterBufferSize = 4096
 
 	for {
 		conn, err := listener.Accept()
@@ -22,7 +24,7 @@ func runServer(listener net.Listener) {
 			return
 		}
 		rpcCodec := codec.MsgpackSpecRpc.ServerCodec(conn, &handle)
-		rpc.ServeCodec(rpcCodec)
+		go rpc.ServeCodec(rpcCodec)
 	}
 }
 

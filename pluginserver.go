@@ -52,9 +52,10 @@ type pluginData struct {
 }
 
 func (s PluginServer) loadPlugin(name string) (plug *pluginData, err error) {
-	s.lock.RLock()
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	plug, ok := s.plugins[name]
-	s.lock.RUnlock()
 	if ok {
 		return
 	}
@@ -84,9 +85,7 @@ func (s PluginServer) loadPlugin(name string) (plug *pluginData, err error) {
 		config:      constructor(),
 	}
 
-	s.lock.Lock()
 	s.plugins[name] = plug
-	s.lock.Unlock()
 
 	return
 }
