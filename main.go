@@ -16,6 +16,7 @@ func runServer(listener net.Listener) {
 	var handle codec.MsgpackHandle
 	handle.ReaderBufferSize = 4096
 	handle.WriterBufferSize = 4096
+	handle.RawToString = true
 
 	for {
 		conn, err := listener.Accept()

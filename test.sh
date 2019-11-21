@@ -3,6 +3,11 @@
 if [ "$1" == "-v" ]; then
 	VERBOSE='true'
 fi
+if [ "$1" == "-vv" ]; then
+	VERBOSE='very'
+fi
+
+pkill go-pluginserver
 
 SOCKET='sock'
 
@@ -18,6 +23,7 @@ fi
 msg() {
 	query="$1"
 	[ -v VERBOSE ] && rq <<< "$query"
+	[ "$VERBOSE" == "very" ] && rq <<< "$query" -M | hd
 	METHOD="$(rq <<< "$1" -- 'at([2])')"
 	response="$(rq <<< "$query" -M | nc -U "$SOCKET" -N | rq -m)"
 	[ -v VERBOSE ] && rq <<< "$response"
@@ -69,16 +75,19 @@ msg '[0, 19, "plugin.HandleEvent", [{"InstanceId": '$instanceID', "EventName": "
 assert_noerr
 eventId=$(query_result 'at "EventId"')
 
-msg '[0, 19, "plugin.Step", [{"EventId": '$eventId', "Data": "access", "Params": [45, 23]}]]'
-assert_noerr
-callBack=$(query_result 'at "Data"')
-assert_fld_match 'Data' 'kong.request.get_header:[\"host\"]'
+# msg '[0, 19, "plugin.Step", [{"EventId": '$eventId', "Data": "access", "Params": [45, 23]}]]'
+# assert_noerr
+# callBack=$(query_result 'at "Data"')
+assert_fld_match 'Data.Method' 'kong.request.get_header'
+assert_fld_match 'Data.Args' '"host"'
 # echo "callBack: $callBack"		# get_header('host')
 
 msg '[0, 19, "plugin.Step", [{"EventId": '$eventId', "Data": "example.com"}]]'
 assert_noerr
 # callBack=$(query_result 'at "Data"')
-assert_fld_match 'Data' 'kong.response.set_header:[\"x-hello-go\",\"Go says hello to example.com (/some/where/else/)\"]'
+assert_fld_match 'Data.Method' 'kong.response.set_header'
+assert_fld_match 'Data.Args[0]' '"x-hello-go"'
+assert_fld_match 'Data.Args[1]' '"Go says hello to example.com (/some/where/else/)"'
 # echo "callBack: $callBack"		# set_header('x-hello-go', ....)
 
 msg '[0, 19, "plugin.Step", [{"EventId": '$eventId', "Data": "ok"}]]'

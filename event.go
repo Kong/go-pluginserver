@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/kong/go-pdk"
+	"log"
 )
 
 // Incoming data for a new event.
@@ -16,7 +17,7 @@ type StartEventData struct {
 type eventData struct {
 	id       int           // event id
 	instance *instanceData // plugin instance
-	ipc      chan string   // communication channel (TODO: use decoded structs)
+	ipc      chan interface{}   // communication channel (TODO: use decoded structs)
 	pdk      *pdk.PDK      // go-pdk instance
 }
 
@@ -40,7 +41,7 @@ func (s *PluginServer) HandleEvent(in StartEventData, out *StepData) error {
 			in.EventName, instance.plugin.name)
 	}
 
-	ipc := make(chan string)
+	ipc := make(chan interface{})
 
 	event := eventData{
 		instance: instance,
@@ -65,7 +66,9 @@ func (s *PluginServer) HandleEvent(in StartEventData, out *StepData) error {
 		s.lock.Unlock()
 	}()
 
-	*out = StepData{EventId: event.id, Data: "ok"}
+	ipc <- "run" // kickstart the handler
+
+	*out = StepData{EventId: event.id, Data: <-ipc}
 	return nil
 }
 
@@ -73,7 +76,7 @@ func (s *PluginServer) HandleEvent(in StartEventData, out *StepData) error {
 // TODO: use decoded structure instead of a JSON string.
 type StepData struct {
 	EventId int    // event cycle to which this belongs
-	Data    string // carried data
+	Data    interface{} // carried data
 }
 
 // Step carries a callback's anser back from Kong to the plugin,
@@ -88,9 +91,13 @@ func (s *PluginServer) Step(in StepData, out *StepData) error {
 		return fmt.Errorf("No running event %d", in.EventId)
 	}
 
+	log.Printf("from rpc: %#v", in)
+
 	event.ipc <- in.Data
 	outStr := <-event.ipc
 	*out = StepData{EventId: in.EventId, Data: outStr} // TODO: decode outStr
+
+	log.Printf("to rpc: %#v", *out)
 
 	return nil
 }
