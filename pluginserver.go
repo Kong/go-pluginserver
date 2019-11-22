@@ -60,6 +60,9 @@ func (s *PluginServer) loadPlugin(name string) (plug *pluginData, err error) {
 		return
 	}
 
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	code, err := plugin.Open(path.Join(s.pluginsDir, name+".so"))
 	if err != nil {
 		err = fmt.Errorf("failed to open plugin %s: %w", name, err)
@@ -85,9 +88,7 @@ func (s *PluginServer) loadPlugin(name string) (plug *pluginData, err error) {
 		config:      constructor(),
 	}
 
-	s.lock.Lock()
 	s.plugins[name] = plug
-	s.lock.Unlock()
 
 	return
 }
@@ -169,6 +170,7 @@ func (s PluginServer) GetPluginInfo(name string, info *PluginInfo) error {
 	*info = PluginInfo{Name: name}
 
 	plug.lock.Lock()
+	defer plug.lock.Unlock()
 	handlers := getHandlers(plug.config)
 
 	info.Phases = make([]string, len(handlers))
@@ -197,7 +199,6 @@ func (s PluginServer) GetPluginInfo(name string, info *PluginInfo) error {
 	out.WriteString(st)
 
 	out.WriteString(`}}]}`)
-	plug.lock.Unlock()
 
 	info.Schema = out.String()
 
