@@ -88,6 +88,7 @@ msg '[0, 19, "plugin.Step", [{"EventId": '$eventId', "Data": "ok"}]]'
 assert_noerr
 assert_fld_match 'Data.Method' 'kong.router.get_route'
 
+# msg '[0, 19, "plugin.StepError", [{"EventId": '$eventId', "Data": "not in the mood for routes"}]]'
 msg "$(cat <<-EOF
 [
   0, 19, "plugin.StepRoute",

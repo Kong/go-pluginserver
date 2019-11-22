@@ -7,6 +7,11 @@ import (
 )
 
 type Error string
+
+func (e Error) Error() string {
+	return string(e)
+}
+
 type StepErrorData struct {
 	EventId int
 	Data    Error
