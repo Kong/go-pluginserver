@@ -75,26 +75,19 @@ msg '[0, 19, "plugin.HandleEvent", [{"InstanceId": '$instanceID', "EventName": "
 assert_noerr
 eventId=$(query_result 'at "EventId"')
 
-# msg '[0, 19, "plugin.Step", [{"EventId": '$eventId', "Data": "access", "Params": [45, 23]}]]'
-# assert_noerr
-# callBack=$(query_result 'at "Data"')
 assert_fld_match 'Data.Method' 'kong.request.get_header'
 assert_fld_match 'Data.Args' '"host"'
-# echo "callBack: $callBack"		# get_header('host')
 
 msg '[0, 19, "plugin.Step", [{"EventId": '$eventId', "Data": "example.com"}]]'
 assert_noerr
-# callBack=$(query_result 'at "Data"')
 assert_fld_match 'Data.Method' 'kong.response.set_header'
 assert_fld_match 'Data.Args[0]' '"x-hello-go"'
 assert_fld_match 'Data.Args[1]' '"Go says hello to example.com (/some/where/else/)"'
-# echo "callBack: $callBack"		# set_header('x-hello-go', ....)
 
 msg '[0, 19, "plugin.Step", [{"EventId": '$eventId', "Data": "ok"}]]'
 assert_noerr
 callBack=$(query_result 'at "Data"')
 assert_fld_match 'Data' '"ret"'
-# [ "$(query_result 'at "Data"')" == '"ret"' ] || exit 1
 
 
 msg '[0, 19, "plugin.InstanceStatus", ['$instanceID']]'

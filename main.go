@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/rpc"
+	"reflect"
 )
 
 var socket = flag.String("socket", "", "Socket to listen into")
@@ -17,6 +18,7 @@ func runServer(listener net.Listener) {
 	handle.ReaderBufferSize = 4096
 	handle.WriterBufferSize = 4096
 	handle.RawToString = true
+	handle.MapType = reflect.TypeOf(map[string]interface{}(nil))
 
 	for {
 		conn, err := listener.Accept()
