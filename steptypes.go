@@ -19,42 +19,6 @@ func (s *PluginServer) StepError(in StepErrorData, out *StepData) error {
 	}, out)
 }
 
-// type StepIntData struct {
-// 	EventId int
-// 	Data    int
-// }
-//
-// func (s *PluginServer) StepInt(in StepIntData, out *StepData) error {
-// 	return s.Step(StepData{
-// 		EventId: in.EventId,
-// 		Data:    in.Data,
-// 	}, out)
-// }
-//
-// type StepStringData struct {
-// 	EventId int
-// 	Data    string
-// }
-//
-// func (s *PluginServer) StepString(in StepStringData, out *StepData) error {
-// 	return s.Step(StepData{
-// 		EventId: in.EventId,
-// 		Data:    in.Data,
-// 	}, out)
-// }
-
-// type StepStringArrayData struct {
-// 	EventId int
-// 	Data    []string
-// }
-//
-// func (s *PluginServer) StepStringArray(in StepStringArrayData, out *StepData) error {
-// 	return s.Step(StepData{
-// 		EventId: in.EventId,
-// 		Data:    in.Data,
-// 	}, out)
-// }
-
 type StepCredentialData struct {
 	EventId int
 	Data    client.AuthenticatedCredential
@@ -66,30 +30,6 @@ func (s *PluginServer) StepCredential(in StepCredentialData, out *StepData) erro
 		Data:    in.Data,
 	}, out)
 }
-
-// type StepServiceKeyData struct {
-// 	EventId int
-// 	Data    entities.ServiceKey
-// }
-//
-// func (s *PluginServer) StepServiceKey(in StepServiceKeyData, out *StepData) error {
-// 	return s.Step(StepData{
-// 		EventId: in.EventId,
-// 		Data:    in.Data,
-// 	}, out)
-// }
-
-// type StepCertificateKeyData struct {
-// 	EventId int
-// 	Data    entities.CertificateKey
-// }
-//
-// func (s *PluginServer) StepCertificateKey(in StepCertificateKeyData, out *StepData) error {
-// 	return s.Step(StepData{
-// 		EventId: in.EventId,
-// 		Data:    in.Data,
-// 	}, out)
-// }
 
 type StepRouteData struct {
 	EventId int

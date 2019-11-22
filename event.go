@@ -89,13 +89,9 @@ func (s *PluginServer) Step(in StepData, out *StepData) error {
 		return fmt.Errorf("No running event %d", in.EventId)
 	}
 
-	// 	log.Printf("from rpc: %#v", in)
-
 	event.ipc <- in.Data
 	outStr := <-event.ipc
 	*out = StepData{EventId: in.EventId, Data: outStr}
-
-	// 	log.Printf("to rpc: %#v", *out)
 
 	return nil
 }
