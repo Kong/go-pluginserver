@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/kong/go-pdk"
+	"github.com/Kong/go-pdk"
 )
 
 // Incoming data for a new event.

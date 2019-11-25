@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/kong/go-pdk/client"
-	"github.com/kong/go-pdk/entities"
-	"github.com/kong/go-pdk/node"
+	"github.com/Kong/go-pdk/client"
+	"github.com/Kong/go-pdk/entities"
+	"github.com/Kong/go-pdk/node"
 )
 
 type Error string
