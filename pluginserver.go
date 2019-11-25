@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path"
 	"plugin"
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 )
 
 // --- PluginServer --- //
@@ -48,22 +50,37 @@ type pluginData struct {
 	lock        sync.Mutex
 	name        string
 	code        *plugin.Plugin
+	modtime     time.Time
 	constructor func() interface{}
 	config      interface{}
 }
 
-func (s *PluginServer) loadPlugin(name string) (plug *pluginData, err error) {
-	s.lock.RLock()
-	plug, ok := s.plugins[name]
-	s.lock.RUnlock()
-	if ok {
+func getModTime(fname string) (modtime time.Time, err error) {
+	finfo, err := os.Stat(fname)
+	if err != nil {
 		return
 	}
 
+	modtime = finfo.ModTime()
+	return
+}
+
+func (s *PluginServer) loadPlugin(name string) (plug *pluginData, err error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	code, err := plugin.Open(path.Join(s.pluginsDir, name+".so"))
+	plugFName := path.Join(s.pluginsDir, name+".so")
+	plugModTime, err := getModTime(plugFName)
+	if err != nil {
+		return
+	}
+
+	plug, ok := s.plugins[name]
+	if ok && plug.modtime == plugModTime {
+		return
+	}
+
+	code, err := plugin.Open(plugFName)
 	if err != nil {
 		err = fmt.Errorf("failed to open plugin %s: %w", name, err)
 		return
@@ -84,6 +101,7 @@ func (s *PluginServer) loadPlugin(name string) (plug *pluginData, err error) {
 	plug = &pluginData{
 		name:        name,
 		code:        code,
+		modtime:     plugModTime,
 		constructor: constructor,
 		config:      constructor(),
 	}

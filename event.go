@@ -73,8 +73,8 @@ func (s *PluginServer) HandleEvent(in StartEventData, out *StepData) error {
 
 // A callback's response/request.
 type StepData struct {
-	EventId    int // event cycle to which this belongs
-	Data       interface{} // carried data
+	EventId int         // event cycle to which this belongs
+	Data    interface{} // carried data
 }
 
 // Step carries a callback's anser back from Kong to the plugin,
