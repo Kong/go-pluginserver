@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/Kong/go-pdk"
+	"time"
 )
 
 // Incoming data for a new event.
@@ -61,6 +62,7 @@ func (s *PluginServer) HandleEvent(in StartEventData, out *StepData) error {
 		ipc <- "ret"
 
 		s.lock.Lock()
+		event.instance.lastEvent = time.Now()
 		delete(s.events, event.id)
 		s.lock.Unlock()
 	}()

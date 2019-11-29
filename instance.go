@@ -15,6 +15,7 @@ type instanceData struct {
 	initialized bool
 	config      interface{}
 	handlers    map[string]func(kong *pdk.PDK)
+	lastEvent   time.Time
 }
 
 type (
@@ -39,6 +40,32 @@ func getHandlers(config interface{}) map[string]func(kong *pdk.PDK) {
 	if h, ok := config.(logger)      ; ok { handlers["log"]           = h.Log          }
 
 	return handlers
+}
+
+
+func (s *PluginServer) expireInstances() error {
+	const instanceTimeout = 60
+	expirationCutoff := time.Now().Add(time.Second * -instanceTimeout)
+
+	oldinstances := map[int]bool{}
+	for id, inst := range s.instances {
+		if inst.startTime.Before(expirationCutoff) && inst.lastEvent.Before(expirationCutoff) {
+			oldinstances[id] = true
+		}
+	}
+
+	for _, evt := range s.events {
+		instId := evt.instance.id
+		if _, ok := oldinstances[instId]; ok {
+			delete(oldinstances, instId)
+		}
+	}
+
+	for id := range oldinstances {
+		delete(s.instances, id)
+	}
+
+	return nil
 }
 
 // Configuration data for a new plugin instance.
@@ -96,6 +123,8 @@ func (s *PluginServer) StartInstance(config PluginConfig, status *InstanceStatus
 		StartTime: instance.startTime.Unix(),
 	}
 
+	s.expireInstances()
+
 	return nil
 }
 
@@ -145,6 +174,7 @@ func (s *PluginServer) CloseInstance(id int, status *InstanceStatus) error {
 	s.lock.Lock()
 	instance.plugin.lastCloseInstance = time.Now()
 	delete(s.instances, id)
+	s.expireInstances()
 	s.lock.Unlock()
 
 	return nil
