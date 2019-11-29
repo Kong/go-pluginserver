@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path"
 	"plugin"
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 )
 
 // --- PluginServer --- //
@@ -42,14 +44,53 @@ func (s *PluginServer) SetPluginDir(dir string, reply *string) error {
 	return nil
 }
 
+// --- status --- //
+
+type ServerStatusData struct {
+	Plugins map[string]PluginStatusData
+}
+
+func (s *PluginServer) GetStatus(n int, reply *ServerStatusData) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	*reply = ServerStatusData{
+		Plugins: make(map[string]PluginStatusData),
+	}
+
+	var err error
+	for pluginname := range s.plugins {
+		reply.Plugins[pluginname], err = s.getPluginStatus(pluginname)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // --- pluginData  --- //
 
 type pluginData struct {
-	lock        sync.Mutex
-	name        string
-	code        *plugin.Plugin
-	constructor func() interface{}
-	config      interface{}
+	lock              sync.Mutex
+	name              string
+	code              *plugin.Plugin
+	modtime           time.Time
+	loadtime          time.Time
+	constructor       func() interface{}
+	config            interface{}
+	lastStartInstance time.Time
+	lastCloseInstance time.Time
+}
+
+func getModTime(fname string) (modtime time.Time, err error) {
+	finfo, err := os.Stat(fname)
+	if err != nil {
+		return
+	}
+
+	modtime = finfo.ModTime()
+	return
 }
 
 func (s *PluginServer) loadPlugin(name string) (plug *pluginData, err error) {
@@ -61,7 +102,13 @@ func (s *PluginServer) loadPlugin(name string) (plug *pluginData, err error) {
 		return
 	}
 
-	code, err := plugin.Open(path.Join(s.pluginsDir, name+".so"))
+	plugFName := path.Join(s.pluginsDir, name+".so")
+	plugModTime, err := getModTime(plugFName)
+	if err != nil {
+		return
+	}
+
+	code, err := plugin.Open(plugFName)
 	if err != nil {
 		err = fmt.Errorf("failed to open plugin %s: %w", name, err)
 		return
@@ -82,6 +129,8 @@ func (s *PluginServer) loadPlugin(name string) (plug *pluginData, err error) {
 	plug = &pluginData{
 		name:        name,
 		code:        code,
+		modtime:     plugModTime,
+		loadtime:    time.Now(),
 		constructor: constructor,
 		config:      constructor(),
 	}
@@ -162,6 +211,8 @@ func getSchemaDict(t reflect.Type) schemaDict {
 // Information obtained from a plugin's compiled code.
 type PluginInfo struct {
 	Name     string     // plugin name
+	ModTime  time.Time  // plugin file modification time
+	LoadTime time.Time  // plugin load time
 	Phases   []string   // events it can handle
 	Version  string     // version number
 	Priority int        // priority info
@@ -210,4 +261,43 @@ func (s PluginServer) GetPluginInfo(name string, info *PluginInfo) error {
 	}
 
 	return nil
+}
+
+type PluginStatusData struct {
+	Name              string
+	Modtime           int64
+	LoadTime          int64
+	Instances         []InstanceStatus
+	LastStartInstance int64
+	LastCloseInstance int64
+}
+
+func (s *PluginServer) getPluginStatus(name string) (status PluginStatusData, err error) {
+	plug, ok := s.plugins[name]
+	if !ok {
+		err = fmt.Errorf("plugin %#v not loaded", name)
+		return
+	}
+
+	instances := []InstanceStatus{}
+	for _, instance := range s.instances {
+		if instance.plugin == plug {
+			instances = append(instances, InstanceStatus{
+				Name:      name,
+				Id:        instance.id,
+				Config:    instance.config,
+				StartTime: instance.startTime.Unix(),
+			})
+		}
+	}
+
+	status = PluginStatusData{
+		Name:              name,
+		Modtime:           plug.modtime.Unix(),
+		LoadTime:          plug.loadtime.Unix(),
+		Instances:         instances,
+		LastStartInstance: plug.lastStartInstance.Unix(),
+		LastCloseInstance: plug.lastCloseInstance.Unix(),
+	}
+	return
 }

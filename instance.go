@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/Kong/go-pdk"
+	"time"
 )
 
 // --- instanceData --- //
 type instanceData struct {
 	id          int
 	plugin      *pluginData
+	startTime   time.Time
 	initialized bool
 	config      interface{}
 	handlers    map[string]func(kong *pdk.PDK)
@@ -47,9 +49,10 @@ type PluginConfig struct {
 
 // Current state of a plugin instance.  TODO: add some statistics
 type InstanceStatus struct {
-	Name   string      // plugin name
-	Id     int         // instance id
-	Config interface{} // configuration data, decoded
+	Name      string      // plugin name
+	Id        int         // instance id
+	Config    interface{} // configuration data, decoded
+	StartTime int64
 }
 
 // StartInstance starts a plugin instance, as requred by configuration data.  More than
@@ -73,21 +76,24 @@ func (s *PluginServer) StartInstance(config PluginConfig, status *InstanceStatus
 	}
 
 	instance := instanceData{
-		plugin:   plug,
-		config:   instanceConfig,
-		handlers: getHandlers(instanceConfig),
+		plugin:    plug,
+		startTime: time.Now(),
+		config:    instanceConfig,
+		handlers:  getHandlers(instanceConfig),
 	}
 
 	s.lock.Lock()
 	instance.id = s.nextInstanceId
 	s.nextInstanceId++
 	s.instances[instance.id] = &instance
+	plug.lastStartInstance = instance.startTime
 	s.lock.Unlock()
 
 	*status = InstanceStatus{
-		Name:   config.Name,
-		Id:     instance.id,
-		Config: instance.config,
+		Name:      config.Name,
+		Id:        instance.id,
+		Config:    instance.config,
+		StartTime: instance.startTime.Unix(),
 	}
 
 	return nil
@@ -137,6 +143,7 @@ func (s *PluginServer) CloseInstance(id int, status *InstanceStatus) error {
 	// kill?
 
 	s.lock.Lock()
+	instance.plugin.lastCloseInstance = time.Now()
 	delete(s.instances, id)
 	s.lock.Unlock()
 

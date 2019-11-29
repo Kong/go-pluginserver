@@ -63,6 +63,10 @@ query_result() {
 msg '[0, 19, "plugin.SetPluginDir", ["/home/javier/devel/kong_dev/kong"]]'
 assert_noerr
 
+msg '[0, 19, "plugin.GetStatus", []]'
+assert_noerr
+assert_fld_match 'Plugins' '{}'
+
 msg '[0, 19, "plugin.GetPluginInfo", ["go-log"]]'
 assert_noerr
 
@@ -77,6 +81,10 @@ eventId=$(query_result 'at "EventId"')
 
 assert_fld_match 'Data.Method' 'kong.request.get_header'
 assert_fld_match 'Data.Args' '"host"'
+
+msg '[0, 19, "plugin.GetStatus", []]'
+assert_noerr
+
 
 msg '[0, 19, "plugin.Step", [{"EventId": '$eventId', "Data": "example.com"}]]'
 assert_noerr
@@ -122,6 +130,10 @@ assert_noerr
 
 msg "[0, 19, \"plugin.CloseInstance\", [$instanceID]]"
 assert_noerr
+
+msg '[0, 19, "plugin.GetStatus", []]'
+assert_noerr
+assert_fld_match 'Plugins.go-log' '"Name":"go-log"'
 
 
 if [ ! -v PREVIOUS_SERVER ]; then
