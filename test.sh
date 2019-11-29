@@ -86,34 +86,34 @@ assert_fld_match 'Data.Args[1]' '"Go says hello to example.com (/some/where/else
 
 msg '[0, 19, "plugin.Step", [{"EventId": '$eventId', "Data": "ok"}]]'
 assert_noerr
-assert_fld_match 'Data.Method' 'kong.router.get_route'
-
-# msg '[0, 19, "plugin.StepError", [{"EventId": '$eventId', "Data": "not in the mood for routes"}]]'
-msg "$(cat <<-EOF
-[
-  0, 19, "plugin.StepRoute",
-  [{
-    "Data": {
-      "created_at": 1574445198,
-      "https_redirect_status_code": 426,
-      "id": "c0ba987b-99e0-4342-a255-61ff47d54fe6",
-      "paths": [ "/" ],
-      "preserve_host": false,
-      "protocols": [ "http", "https" ],
-      "regex_priority": 0,
-      "service": {
-        "id": "a1a72823-4c75-42b3-92e6-79c865175287"
-      },
-      "strip_path": true,
-      "updated_at": 1574445198
-    },
-    "EventId": 0
-  }]
-]
-EOF
-)"
-assert_noerr
-# callBack=$(query_result 'at "Data"')
+# assert_fld_match 'Data.Method' 'kong.router.get_route'
+#
+# # msg '[0, 19, "plugin.StepError", [{"EventId": '$eventId', "Data": "not in the mood for routes"}]]'
+# msg "$(cat <<-EOF
+# [
+#   0, 19, "plugin.StepRoute",
+#   [{
+#     "Data": {
+#       "created_at": 1574445198,
+#       "https_redirect_status_code": 426,
+#       "id": "c0ba987b-99e0-4342-a255-61ff47d54fe6",
+#       "paths": [ "/" ],
+#       "preserve_host": false,
+#       "protocols": [ "http", "https" ],
+#       "regex_priority": 0,
+#       "service": {
+#         "id": "a1a72823-4c75-42b3-92e6-79c865175287"
+#       },
+#       "strip_path": true,
+#       "updated_at": 1574445198
+#     },
+#     "EventId": 0
+#   }]
+# ]
+# EOF
+# )"
+# assert_noerr
+# # callBack=$(query_result 'at "Data"')
 assert_fld_match 'Data' '"ret"'
 
 

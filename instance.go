@@ -63,6 +63,9 @@ func (s *PluginServer) StartInstance(config PluginConfig, status *InstanceStatus
 		return err
 	}
 
+	plug.lock.Lock()
+	defer plug.lock.Unlock()
+
 	instanceConfig := plug.constructor()
 
 	if err := json.Unmarshal(config.Config, instanceConfig); err != nil {

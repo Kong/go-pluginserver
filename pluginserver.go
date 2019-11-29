@@ -2,13 +2,11 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"path"
 	"plugin"
 	"reflect"
 	"strings"
 	"sync"
-	"time"
 )
 
 // --- PluginServer --- //
@@ -50,37 +48,20 @@ type pluginData struct {
 	lock        sync.Mutex
 	name        string
 	code        *plugin.Plugin
-	modtime     time.Time
 	constructor func() interface{}
 	config      interface{}
-}
-
-func getModTime(fname string) (modtime time.Time, err error) {
-	finfo, err := os.Stat(fname)
-	if err != nil {
-		return
-	}
-
-	modtime = finfo.ModTime()
-	return
 }
 
 func (s *PluginServer) loadPlugin(name string) (plug *pluginData, err error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	plugFName := path.Join(s.pluginsDir, name+".so")
-	plugModTime, err := getModTime(plugFName)
-	if err != nil {
-		return
-	}
-
 	plug, ok := s.plugins[name]
-	if ok && plug.modtime == plugModTime {
+	if ok {
 		return
 	}
 
-	code, err := plugin.Open(plugFName)
+	code, err := plugin.Open(path.Join(s.pluginsDir, name+".so"))
 	if err != nil {
 		err = fmt.Errorf("failed to open plugin %s: %w", name, err)
 		return
@@ -101,7 +82,6 @@ func (s *PluginServer) loadPlugin(name string) (plug *pluginData, err error) {
 	plug = &pluginData{
 		name:        name,
 		code:        code,
-		modtime:     plugModTime,
 		constructor: constructor,
 		config:      constructor(),
 	}
