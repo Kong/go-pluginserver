@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/Kong/go-pdk"
+	"log"
 	"time"
 )
 
@@ -62,6 +63,8 @@ func (s *PluginServer) expireInstances() error {
 	}
 
 	for id := range oldinstances {
+		inst := s.instances[id]
+		log.Printf("closing instance %#v:%v", inst.plugin.name, inst.id)
 		delete(s.instances, id)
 	}
 
@@ -113,7 +116,10 @@ func (s *PluginServer) StartInstance(config PluginConfig, status *InstanceStatus
 	instance.id = s.nextInstanceId
 	s.nextInstanceId++
 	s.instances[instance.id] = &instance
+
 	plug.lastStartInstance = instance.startTime
+	s.expireInstances()
+
 	s.lock.Unlock()
 
 	*status = InstanceStatus{
@@ -123,7 +129,8 @@ func (s *PluginServer) StartInstance(config PluginConfig, status *InstanceStatus
 		StartTime: instance.startTime.Unix(),
 	}
 
-	s.expireInstances()
+	log.Printf("Started instance %#v:%v", config.Name, instance.id)
+
 
 	return nil
 }
@@ -170,6 +177,8 @@ func (s *PluginServer) CloseInstance(id int, status *InstanceStatus) error {
 	}
 
 	// kill?
+
+	log.Printf("closed instance %#v:%v", instance.plugin.name, instance.id)
 
 	s.lock.Lock()
 	instance.plugin.lastCloseInstance = time.Now()
