@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/rpc"
+	"os"
 	"reflect"
 )
 
@@ -26,6 +27,10 @@ func runServer(listener net.Listener) {
 			log.Printf("accept(): %s", err)
 			return
 		}
+
+		enc := codec.NewEncoder(conn, &handle)
+		_ = enc.Encode([]interface{}{2, "serverPid", os.Getpid()})
+
 		rpcCodec := codec.MsgpackSpecRpc.ServerCodec(conn, &handle)
 		go rpc.ServeCodec(rpcCodec)
 	}

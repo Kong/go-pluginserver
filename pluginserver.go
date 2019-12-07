@@ -47,6 +47,7 @@ func (s *PluginServer) SetPluginDir(dir string, reply *string) error {
 // --- status --- //
 
 type ServerStatusData struct {
+	Pid int
 	Plugins map[string]PluginStatusData
 }
 
@@ -55,6 +56,7 @@ func (s *PluginServer) GetStatus(n int, reply *ServerStatusData) error {
 	defer s.lock.Unlock()
 
 	*reply = ServerStatusData{
+		Pid: os.Getpid(),
 		Plugins: make(map[string]PluginStatusData),
 	}
 

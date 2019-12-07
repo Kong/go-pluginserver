@@ -8,6 +8,9 @@ if [ "$1" == "-vv" ]; then
 fi
 
 pkill go-pluginserver
+rq --help >/dev/null
+
+echo "pwd: $PWD"
 
 SOCKET='sock'
 
@@ -18,18 +21,19 @@ else
 	[ -S "$SOCKET" ] && rm "$SOCKET"
 	./go-pluginserver -socket "$SOCKET" &
 	pgrep go-pluginserver -l
+	sleep 0.1s
 fi
 
 msg() {
 	query="$1"
 	[ -v VERBOSE ] && rq <<< "$query"
 	[ "$VERBOSE" == "very" ] && rq <<< "$query" -M | hd
-	METHOD="$(rq <<< "$1" -- 'at([2])')"
-	response="$(rq <<< "$query" -M | nc -U "$SOCKET" -N | rq -m)"
+	METHOD="$(rq <<< "$query" -- 'at([2])')"
+	response="$(rq <<< "$query" -M | nc -NU "$SOCKET" | rq -m | jq 'select(.[0]==1)' )"
 	[ -v VERBOSE ] && rq <<< "$response"
 
-	ERROR="$(rq <<< "$response" -- 'at [2] ')"
-	RESULT="$(rq <<< "$response" -- 'at [3] ')"
+	ERROR="$(jq <<< "$response" '.[2]')"
+	RESULT="$(jq <<< "$response" '.[3]')"
 }
 
 assert_noerr() {
@@ -46,7 +50,7 @@ assert_fld_match() {
 	fld="$1"
 	pattern="$2"
 
-	fld_v="$(query_result 'at "'$fld'"')"
+	fld_v="$(query_result '."'$fld'"')"
 	if [[ "$fld_v" =~ "$pattern" ]]; then
 		echo "==> $fld_v : ok"
 	else
@@ -57,10 +61,10 @@ assert_fld_match() {
 
 query_result() {
 # 	echo "$RESULT"
-	rq <<< "$RESULT" -- "$1"
+	jq <<< "$RESULT" "$1"
 }
 
-msg '[0, 19, "plugin.SetPluginDir", ["/home/javier/devel/kong_dev/kong"]]'
+msg '[0, 19, "plugin.SetPluginDir", ["'$PWD'"]]'
 assert_noerr
 
 msg '[0, 19, "plugin.GetStatus", []]'
@@ -72,12 +76,12 @@ assert_noerr
 
 msg '[0, 19, "plugin.StartInstance", [{"Name":"go-log", "Config":"{\"reopen\":false, \"path\":\"/some/where/else/\"}"}]]'
 assert_noerr
-instanceID=$(query_result 'at "Id"')
+instanceID=$(query_result '."Id"')
 echo "instanceID: $instanceID"
 
 msg '[0, 19, "plugin.HandleEvent", [{"InstanceId": '$instanceID', "EventName": "access", "Params": [45, 23]}]]'
 assert_noerr
-eventId=$(query_result 'at "EventId"')
+eventId=$(query_result '."EventId"')
 
 assert_fld_match 'Data.Method' 'kong.request.get_header'
 assert_fld_match 'Data.Args' '"host"'
@@ -121,7 +125,7 @@ assert_noerr
 # EOF
 # )"
 # assert_noerr
-# # callBack=$(query_result 'at "Data"')
+# # callBack=$(query_result '."Data"')
 assert_fld_match 'Data' '"ret"'
 
 
