@@ -40,6 +40,13 @@ func main() {
 	flag.Parse()
 
 	if *socket != "" {
+
+		err := os.Remove(*socket)
+		if err != nil && !os.IsNotExist(err) {
+			log.Printf(`removing "%s": %s`, socket, err)
+			return
+		}
+
 		listener, err := net.Listen("unix", *socket)
 		if err != nil {
 			log.Printf(`listen("%s"): %s`, socket, err)
