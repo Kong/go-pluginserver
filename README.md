@@ -3,10 +3,10 @@ go-pluginserver
 
 Runs Kong plugins written in Go.  Implemented as a standalone MessagePack-RPC server.
 
-There's no explicid state associated with the client connections, so the same plugins,
+There's no explicit state associated with the client connections, so the same plugins,
 instances and even events could be shared with several clients, or a single client can
 use more than one connection from a pool.  For the same reason, plugin instances and
-events survive client disconnections.
+events could survive client disconnections, if the client reconnects when necessary.
 
 Pluginserver
 --
@@ -32,6 +32,10 @@ RPC Methods:
  - `plugin.InstanceStatus()`
  - `plugin.CloseInstance()`
 
+The `StartInstance()` method receives configuration data in a serialized format (currently JSON)
+in a binary string.  If the configuration is modified externally, a new instance should be started
+and the old one closed.
+
 Event
 --
 
@@ -43,3 +47,15 @@ RPC Methods:
 
  - `plugin.HandleEvent()`
  - `plugin.Step()`
+ - `plugin.StepError()`
+ - `plugin.StepCredential()`
+ - `plugin.StepRoute()`
+ - `plugin.StepService()`
+ - `plugin.StepConsumer()`
+ - `plugin.StepMemoryStats()`
+
+To start an event, call `plutin.HandleEvent()` with an instance id and event name.  The return data
+will include the event ID and either a `"ret"` string or callback request and parameters.  If the
+callback response is a primitive type (number, string, simple dictionary) return it via the
+`plugin.Step()` method, including the event ID.  To return an error, use `plugin.StepError()`.
+For other specific complex types, use the corresponding `plugin.StepXXX()` method.

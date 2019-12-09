@@ -8,6 +8,8 @@ import (
 	"log"
 	"net"
 	"net/rpc"
+	"os"
+	"reflect"
 )
 
 var socket = flag.String("socket", "", "Socket to listen into")
@@ -16,6 +18,8 @@ func runServer(listener net.Listener) {
 	var handle codec.MsgpackHandle
 	handle.ReaderBufferSize = 4096
 	handle.WriterBufferSize = 4096
+	handle.RawToString = true
+	handle.MapType = reflect.TypeOf(map[string]interface{}(nil))
 
 	for {
 		conn, err := listener.Accept()
@@ -23,6 +27,10 @@ func runServer(listener net.Listener) {
 			log.Printf("accept(): %s", err)
 			return
 		}
+
+		enc := codec.NewEncoder(conn, &handle)
+		_ = enc.Encode([]interface{}{2, "serverPid", os.Getpid()})
+
 		rpcCodec := codec.MsgpackSpecRpc.ServerCodec(conn, &handle)
 		go rpc.ServeCodec(rpcCodec)
 	}
