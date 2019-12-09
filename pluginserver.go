@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path"
 	"plugin"
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 )
 
 // --- PluginServer --- //
@@ -42,25 +44,73 @@ func (s *PluginServer) SetPluginDir(dir string, reply *string) error {
 	return nil
 }
 
+// --- status --- //
+
+type ServerStatusData struct {
+	Pid int
+	Plugins map[string]PluginStatusData
+}
+
+func (s *PluginServer) GetStatus(n int, reply *ServerStatusData) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	*reply = ServerStatusData{
+		Pid: os.Getpid(),
+		Plugins: make(map[string]PluginStatusData),
+	}
+
+	var err error
+	for pluginname := range s.plugins {
+		reply.Plugins[pluginname], err = s.getPluginStatus(pluginname)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // --- pluginData  --- //
 
 type pluginData struct {
-	lock        sync.Mutex
-	name        string
-	code        *plugin.Plugin
-	constructor func() interface{}
-	config      interface{}
+	lock              sync.Mutex
+	name              string
+	code              *plugin.Plugin
+	modtime           time.Time
+	loadtime          time.Time
+	constructor       func() interface{}
+	config            interface{}
+	lastStartInstance time.Time
+	lastCloseInstance time.Time
+}
+
+func getModTime(fname string) (modtime time.Time, err error) {
+	finfo, err := os.Stat(fname)
+	if err != nil {
+		return
+	}
+
+	modtime = finfo.ModTime()
+	return
 }
 
 func (s *PluginServer) loadPlugin(name string) (plug *pluginData, err error) {
-	s.lock.RLock()
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	plug, ok := s.plugins[name]
-	s.lock.RUnlock()
 	if ok {
 		return
 	}
 
-	code, err := plugin.Open(path.Join(s.pluginsDir, name+".so"))
+	plugFName := path.Join(s.pluginsDir, name+".so")
+	plugModTime, err := getModTime(plugFName)
+	if err != nil {
+		return
+	}
+
+	code, err := plugin.Open(plugFName)
 	if err != nil {
 		err = fmt.Errorf("failed to open plugin %s: %w", name, err)
 		return
@@ -81,79 +131,94 @@ func (s *PluginServer) loadPlugin(name string) (plug *pluginData, err error) {
 	plug = &pluginData{
 		name:        name,
 		code:        code,
+		modtime:     plugModTime,
+		loadtime:    time.Now(),
 		constructor: constructor,
 		config:      constructor(),
 	}
 
-	s.lock.Lock()
 	s.plugins[name] = plug
-	s.lock.Unlock()
 
 	return
 }
 
-func getSchemaType(t reflect.Type) (string, bool) {
+type schemaDict map[string]interface{}
+
+func getSchemaDict(t reflect.Type) schemaDict {
 	switch t.Kind() {
 	case reflect.String:
-		return `"string"`, true
+		return schemaDict{"type": "string"}
+
 	case reflect.Bool:
-		return `"boolean"`, true
+		return schemaDict{"type": "boolean"}
+
 	case reflect.Int, reflect.Int32:
-		return `"integer"`, true
+		return schemaDict{"type": "integer"}
+
 	case reflect.Uint, reflect.Uint32:
-		return `"integer","between":[0,2147483648]`, true
+		return schemaDict{
+			"type":    "integer",
+			"between": []int{0, 2147483648},
+		}
+
 	case reflect.Float32, reflect.Float64:
-		return `"number"`, true
+		return schemaDict{"type": "number"}
+
 	case reflect.Array:
-		elemType, ok := getSchemaType(t.Elem())
-		if !ok {
+		elemType := getSchemaDict(t.Elem())
+		if elemType == nil {
 			break
 		}
-		return `"array","elements":{"type":` + elemType + `}`, true
+		return schemaDict{
+			"type":     "array",
+			"elements": schemaDict{"type": elemType},
+		}
+
 	case reflect.Map:
-		kType, ok := getSchemaType(t.Key())
-		vType, ok := getSchemaType(t.Elem())
-		if !ok {
+		kType := getSchemaDict(t.Key())
+		vType := getSchemaDict(t.Elem())
+		if kType == nil || vType == nil {
 			break
 		}
-		return `"map","keys":{"type":` + kType + `},"values":{"type":` + vType + `}`, true
+		return schemaDict{
+			"type":   "map",
+			"keys":   schemaDict{"type": kType},
+			"values": schemaDict{"type": vType},
+		}
+
 	case reflect.Struct:
-		var out strings.Builder
-		out.WriteString(`"record","fields":[`)
-		n := t.NumField()
-		for i := 0; i < n; i++ {
+		fieldsArray := []schemaDict{}
+		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
-			typeDecl, ok := getSchemaType(field.Type)
-			if !ok {
+			typeDecl := getSchemaDict(field.Type)
+			if typeDecl == nil {
 				// ignore unrepresentable types
 				continue
-			}
-			if i > 0 {
-				out.WriteString(`,`)
 			}
 			name := field.Tag.Get("json")
 			if name == "" {
 				name = strings.ToLower(field.Name)
 			}
-			out.WriteString(`{"`)
-			out.WriteString(name)
-			out.WriteString(`":{"type":`)
-			out.WriteString(typeDecl)
-			out.WriteString(`}}`)
+			fieldsArray = append(fieldsArray, schemaDict{name: typeDecl})
 		}
-		out.WriteString(`]`)
-		return out.String(), true
+		return schemaDict{
+			"type":   "record",
+			"fields": fieldsArray,
+		}
 	}
-	return "", false
+
+	return nil
 }
 
 // Information obtained from a plugin's compiled code.
 type PluginInfo struct {
-	Name     string   // plugin name
-	Phases   []string // events it can handle
-	Version  string   // version number
-	Priority int      // priority info
-	Schema   string   // JSON representation of the config schema
+	Name     string     // plugin name
+	ModTime  time.Time  // plugin file modification time
+	LoadTime time.Time  // plugin load time
+	Phases   []string   // events it can handle
+	Version  string     // version number
+	Priority int        // priority info
+	Schema   schemaDict // JSON representation of the config schema
 }
 
 // GetPluginInfo loads and retrieves information from the compiled plugin.
@@ -169,6 +234,7 @@ func (s PluginServer) GetPluginInfo(name string, info *PluginInfo) error {
 	*info = PluginInfo{Name: name}
 
 	plug.lock.Lock()
+	defer plug.lock.Unlock()
 	handlers := getHandlers(plug.config)
 
 	info.Phases = make([]string, len(handlers))
@@ -188,18 +254,52 @@ func (s PluginServer) GetPluginInfo(name string, info *PluginInfo) error {
 		info.Priority = prio.(int)
 	}
 
-	var out strings.Builder
-	out.WriteString(`{"name":"`)
-	out.WriteString(name)
-	out.WriteString(`","fields":[{"config":{"type":`)
-
-	st, _ := getSchemaType(reflect.TypeOf(plug.config).Elem())
-	out.WriteString(st)
-
-	out.WriteString(`}}]}`)
-	plug.lock.Unlock()
-
-	info.Schema = out.String()
+	// 	st, _ := getSchemaDict(reflect.TypeOf(plug.config).Elem())
+	info.Schema = schemaDict{
+		"name": name,
+		"fields": []schemaDict{
+			schemaDict{"config": getSchemaDict(reflect.TypeOf(plug.config).Elem())},
+		},
+	}
 
 	return nil
+}
+
+type PluginStatusData struct {
+	Name              string
+	Modtime           int64
+	LoadTime          int64
+	Instances         []InstanceStatus
+	LastStartInstance int64
+	LastCloseInstance int64
+}
+
+func (s *PluginServer) getPluginStatus(name string) (status PluginStatusData, err error) {
+	plug, ok := s.plugins[name]
+	if !ok {
+		err = fmt.Errorf("plugin %#v not loaded", name)
+		return
+	}
+
+	instances := []InstanceStatus{}
+	for _, instance := range s.instances {
+		if instance.plugin == plug {
+			instances = append(instances, InstanceStatus{
+				Name:      name,
+				Id:        instance.id,
+				Config:    instance.config,
+				StartTime: instance.startTime.Unix(),
+			})
+		}
+	}
+
+	status = PluginStatusData{
+		Name:              name,
+		Modtime:           plug.modtime.Unix(),
+		LoadTime:          plug.loadtime.Unix(),
+		Instances:         instances,
+		LastStartInstance: plug.lastStartInstance.Unix(),
+		LastCloseInstance: plug.lastCloseInstance.Unix(),
+	}
+	return
 }

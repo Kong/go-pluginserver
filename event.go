@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"github.com/kong/go-pdk"
+	"github.com/Kong/go-pdk"
+	"time"
 )
 
 // Incoming data for a new event.
@@ -14,10 +15,10 @@ type StartEventData struct {
 }
 
 type eventData struct {
-	id       int           // event id
-	instance *instanceData // plugin instance
-	ipc      chan string   // communication channel (TODO: use decoded structs)
-	pdk      *pdk.PDK      // go-pdk instance
+	id       int              // event id
+	instance *instanceData    // plugin instance
+	ipc      chan interface{} // communication channel (TODO: use decoded structs)
+	pdk      *pdk.PDK         // go-pdk instance
 }
 
 // HandleEvent starts the call/{callback/response}*/finish cycle.
@@ -40,7 +41,7 @@ func (s *PluginServer) HandleEvent(in StartEventData, out *StepData) error {
 			in.EventName, instance.plugin.name)
 	}
 
-	ipc := make(chan string)
+	ipc := make(chan interface{})
 
 	event := eventData{
 		instance: instance,
@@ -61,19 +62,21 @@ func (s *PluginServer) HandleEvent(in StartEventData, out *StepData) error {
 		ipc <- "ret"
 
 		s.lock.Lock()
+		event.instance.lastEvent = time.Now()
 		delete(s.events, event.id)
 		s.lock.Unlock()
 	}()
 
-	*out = StepData{EventId: event.id, Data: "ok"}
+	ipc <- "run" // kickstart the handler
+
+	*out = StepData{EventId: event.id, Data: <-ipc}
 	return nil
 }
 
 // A callback's response/request.
-// TODO: use decoded structure instead of a JSON string.
 type StepData struct {
-	EventId int    // event cycle to which this belongs
-	Data    string // carried data
+	EventId int         // event cycle to which this belongs
+	Data    interface{} // carried data
 }
 
 // Step carries a callback's anser back from Kong to the plugin,
@@ -90,7 +93,7 @@ func (s *PluginServer) Step(in StepData, out *StepData) error {
 
 	event.ipc <- in.Data
 	outStr := <-event.ipc
-	*out = StepData{EventId: in.EventId, Data: outStr} // TODO: decode outStr
+	*out = StepData{EventId: in.EventId, Data: outStr}
 
 	return nil
 }

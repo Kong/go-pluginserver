@@ -3,16 +3,20 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/kong/go-pdk"
+	"github.com/Kong/go-pdk"
+	"log"
+	"time"
 )
 
 // --- instanceData --- //
 type instanceData struct {
 	id          int
 	plugin      *pluginData
+	startTime   time.Time
 	initialized bool
 	config      interface{}
 	handlers    map[string]func(kong *pdk.PDK)
+	lastEvent   time.Time
 }
 
 type (
@@ -39,6 +43,34 @@ func getHandlers(config interface{}) map[string]func(kong *pdk.PDK) {
 	return handlers
 }
 
+
+func (s *PluginServer) expireInstances() error {
+	const instanceTimeout = 60
+	expirationCutoff := time.Now().Add(time.Second * -instanceTimeout)
+
+	oldinstances := map[int]bool{}
+	for id, inst := range s.instances {
+		if inst.startTime.Before(expirationCutoff) && inst.lastEvent.Before(expirationCutoff) {
+			oldinstances[id] = true
+		}
+	}
+
+	for _, evt := range s.events {
+		instId := evt.instance.id
+		if _, ok := oldinstances[instId]; ok {
+			delete(oldinstances, instId)
+		}
+	}
+
+	for id := range oldinstances {
+		inst := s.instances[id]
+		log.Printf("closing instance %#v:%v", inst.plugin.name, inst.id)
+		delete(s.instances, id)
+	}
+
+	return nil
+}
+
 // Configuration data for a new plugin instance.
 type PluginConfig struct {
 	Name   string // plugin name
@@ -47,9 +79,10 @@ type PluginConfig struct {
 
 // Current state of a plugin instance.  TODO: add some statistics
 type InstanceStatus struct {
-	Name   string      // plugin name
-	Id     int         // instance id
-	Config interface{} // configuration data, decoded
+	Name      string      // plugin name
+	Id        int         // instance id
+	Config    interface{} // configuration data, decoded
+	StartTime int64
 }
 
 // StartInstance starts a plugin instance, as requred by configuration data.  More than
@@ -63,6 +96,9 @@ func (s *PluginServer) StartInstance(config PluginConfig, status *InstanceStatus
 		return err
 	}
 
+	plug.lock.Lock()
+	defer plug.lock.Unlock()
+
 	instanceConfig := plug.constructor()
 
 	if err := json.Unmarshal(config.Config, instanceConfig); err != nil {
@@ -70,22 +106,31 @@ func (s *PluginServer) StartInstance(config PluginConfig, status *InstanceStatus
 	}
 
 	instance := instanceData{
-		plugin:   plug,
-		config:   instanceConfig,
-		handlers: getHandlers(instanceConfig),
+		plugin:    plug,
+		startTime: time.Now(),
+		config:    instanceConfig,
+		handlers:  getHandlers(instanceConfig),
 	}
 
 	s.lock.Lock()
 	instance.id = s.nextInstanceId
 	s.nextInstanceId++
 	s.instances[instance.id] = &instance
+
+	plug.lastStartInstance = instance.startTime
+	s.expireInstances()
+
 	s.lock.Unlock()
 
 	*status = InstanceStatus{
-		Name:   config.Name,
-		Id:     instance.id,
-		Config: instance.config,
+		Name:      config.Name,
+		Id:        instance.id,
+		Config:    instance.config,
+		StartTime: instance.startTime.Unix(),
 	}
+
+	log.Printf("Started instance %#v:%v", config.Name, instance.id)
+
 
 	return nil
 }
@@ -133,8 +178,12 @@ func (s *PluginServer) CloseInstance(id int, status *InstanceStatus) error {
 
 	// kill?
 
+	log.Printf("closed instance %#v:%v", instance.plugin.name, instance.id)
+
 	s.lock.Lock()
+	instance.plugin.lastCloseInstance = time.Now()
 	delete(s.instances, id)
+	s.expireInstances()
 	s.lock.Unlock()
 
 	return nil
