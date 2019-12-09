@@ -225,7 +225,7 @@ type PluginInfo struct {
 // TODO: reload if the plugin code has been updated.
 //
 // RPC exported method
-func (s PluginServer) GetPluginInfo(name string, info *PluginInfo) error {
+func (s *PluginServer) GetPluginInfo(name string, info *PluginInfo) error {
 	plug, err := s.loadPlugin(name)
 	if err != nil {
 		return err
