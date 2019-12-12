@@ -14,6 +14,15 @@ import (
 
 var socket = flag.String("socket", "", "Socket to listen into")
 
+func init() {
+	flag.Parse()
+
+	if *socket == "" {
+		flag.Usage()
+		os.Exit(2)
+	}
+}
+
 func runServer(listener net.Listener) {
 	var handle codec.MsgpackHandle
 	handle.ReaderBufferSize = 4096
@@ -37,24 +46,19 @@ func runServer(listener net.Listener) {
 }
 
 func main() {
-	flag.Parse()
-
-	if *socket != "" {
-
-		err := os.Remove(*socket)
-		if err != nil && !os.IsNotExist(err) {
-			log.Printf(`removing "%s": %s`, socket, err)
-			return
-		}
-
-		listener, err := net.Listen("unix", *socket)
-		if err != nil {
-			log.Printf(`listen("%s"): %s`, socket, err)
-			return
-		}
-
-		rpc.RegisterName("plugin", newServer())
-
-		runServer(listener)
+	err := os.Remove(*socket)
+	if err != nil && !os.IsNotExist(err) {
+		log.Printf(`removing "%s": %s`, socket, err)
+		return
 	}
+
+	listener, err := net.Listen("unix", *socket)
+	if err != nil {
+		log.Printf(`listen("%s"): %s`, socket, err)
+		return
+	}
+
+	rpc.RegisterName("plugin", newServer())
+
+	runServer(listener)
 }
