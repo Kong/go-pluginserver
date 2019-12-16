@@ -29,11 +29,12 @@ msg() {
 	[ -v VERBOSE ] && rq <<< "$query"
 	[ "$VERBOSE" == "very" ] && rq <<< "$query" -M | hd
 	METHOD="$(rq <<< "$query" -- 'at([2])')"
-	response="$(rq <<< "$query" -M | nc -NU "$SOCKET" | rq -m | jq 'select(.[0]==1)' )"
+	response="$(rq <<< "$query" -M | ncat -U "$SOCKET" | rq -m | jq 'select(.[0]==1)' )"
 	[ -v VERBOSE ] && rq <<< "$response"
 
 	ERROR="$(jq <<< "$response" '.[2]')"
 	RESULT="$(jq <<< "$response" '.[3]')"
+#	echo $RESULT
 }
 
 assert_noerr() {
@@ -50,7 +51,7 @@ assert_fld_match() {
 	fld="$1"
 	pattern="$2"
 
-	fld_v="$(query_result '."'$fld'"')"
+	fld_v="$(query_result '.'$fld'')"
 	if [[ "$fld_v" =~ "$pattern" ]]; then
 		echo "==> $fld_v : ok"
 	else
@@ -60,7 +61,6 @@ assert_fld_match() {
 }
 
 query_result() {
-# 	echo "$RESULT"
 	jq <<< "$RESULT" "$1"
 }
 
@@ -71,73 +71,80 @@ msg '[0, 19, "plugin.GetStatus", []]'
 assert_noerr
 assert_fld_match 'Plugins' '{}'
 
-msg '[0, 19, "plugin.GetPluginInfo", ["go-log"]]'
+msg '[0, 19, "plugin.GetPluginInfo", ["go-hello"]]'
 assert_noerr
+
+msg '[0, 19, "plugin.StartInstance", [{"Name":"go-hello", "Config":"{\"message\":\"howdy\"}"}]]'
+assert_noerr
+helloId=$(query_result '."Id"')
+echo "helloId: $helloId"
 
 msg '[0, 19, "plugin.StartInstance", [{"Name":"go-log", "Config":"{\"reopen\":false, \"path\":\"/some/where/else/\"}"}]]'
 assert_noerr
-instanceID=$(query_result '."Id"')
-echo "instanceID: $instanceID"
+logId=$(query_result '."Id"')
+echo "logId: $logId"
 
-msg '[0, 19, "plugin.HandleEvent", [{"InstanceId": '$instanceID', "EventName": "access", "Params": [45, 23]}]]'
+msg '[0, 19, "plugin.HandleEvent", [{"InstanceId": '$helloId', "EventName": "access", "Params": [45, 23]}]]'
 assert_noerr
-eventId=$(query_result '."EventId"')
+helloEventId=$(query_result '."EventId"')
 
 assert_fld_match 'Data.Method' 'kong.request.get_header'
 assert_fld_match 'Data.Args' '"host"'
 
-msg '[0, 19, "plugin.GetStatus", []]'
+msg '[0, 20, "plugin.HandleEvent", [{"InstanceId": '$logId', "EventName": "log", "Params": [45, 23]}]]'
 assert_noerr
+logEventId=$(query_result '."EventId"')
 
-
-msg '[0, 19, "plugin.Step", [{"EventId": '$eventId', "Data": "example.com"}]]'
 assert_noerr
-assert_fld_match 'Data.Method' 'kong.response.set_header'
-assert_fld_match 'Data.Args[0]' '"x-hello-go"'
-assert_fld_match 'Data.Args[1]' '"Go says hello to example.com (/some/where/else/)"'
+assert_fld_match 'Data.Method' 'kong.log.serialize'
 
-msg '[0, 19, "plugin.Step", [{"EventId": '$eventId', "Data": "ok"}]]'
-assert_noerr
-# assert_fld_match 'Data.Method' 'kong.router.get_route'
+# msg '[0, 19, "plugin.StepError", [{"EventId": '$helloEventId', "Data": "not in the mood for routes"}]]'
+#msg "$(cat <<-EOF
+#[
+#  0, 19, "plugin.StepRoute",
+#  [{
+#    "Data": {
+#      "created_at": 1574445198,
+#      "https_redirect_status_code": 426,
+#      "id": "c0ba987b-99e0-4342-a255-61ff47d54fe6",
+#      "paths": [ "/" ],
+#      "preserve_host": false,
+#      "protocols": [ "http", "https" ],
+#      "regex_priority": 0,
+#      "service": {
+#        "id": "a1a72823-4c75-42b3-92e6-79c865175287"
+#      },
+#      "strip_path": true,
+#      "updated_at": 1574445198
+#    },
+#    "EventId": 0
+#  }]
+#]
+#EOF
+#)"
+#assert_noerr
 #
-# # msg '[0, 19, "plugin.StepError", [{"EventId": '$eventId', "Data": "not in the mood for routes"}]]'
-# msg "$(cat <<-EOF
-# [
-#   0, 19, "plugin.StepRoute",
-#   [{
-#     "Data": {
-#       "created_at": 1574445198,
-#       "https_redirect_status_code": 426,
-#       "id": "c0ba987b-99e0-4342-a255-61ff47d54fe6",
-#       "paths": [ "/" ],
-#       "preserve_host": false,
-#       "protocols": [ "http", "https" ],
-#       "regex_priority": 0,
-#       "service": {
-#         "id": "a1a72823-4c75-42b3-92e6-79c865175287"
-#       },
-#       "strip_path": true,
-#       "updated_at": 1574445198
-#     },
-#     "EventId": 0
-#   }]
-# ]
-# EOF
-# )"
-# assert_noerr
-# # callBack=$(query_result '."Data"')
-assert_fld_match 'Data' '"ret"'
+#callBack=$(query_result '."Data"')
+#
+#assert_fld_match 'Data' '"ret"'
 
 
-msg '[0, 19, "plugin.InstanceStatus", ['$instanceID']]'
+msg '[0, 19, "plugin.InstanceStatus", ['$helloId']]'
 assert_noerr
 
-msg "[0, 19, \"plugin.CloseInstance\", [$instanceID]]"
+msg "[0, 19, \"plugin.CloseInstance\", [$helloId]]"
+assert_noerr
+
+msg '[0, 19, "plugin.InstanceStatus", ['$logId']]'
+assert_noerr
+
+msg "[0, 19, \"plugin.CloseInstance\", [$logId]]"
 assert_noerr
 
 msg '[0, 19, "plugin.GetStatus", []]'
 assert_noerr
-assert_fld_match 'Plugins.go-log' '"Name":"go-log"'
+assert_fld_match 'Plugins["go-hello"]' '"Name": "go-hello"'
+assert_fld_match 'Plugins["go-log"]' '"Name": "go-log"'
 
 
 if [ ! -v PREVIOUS_SERVER ]; then
