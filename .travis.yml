@@ -5,11 +5,23 @@ language: go
 go:
   - 1.13.x
 
+addons:
+  apt:
+    packages:
+      - nmap # for ncat
+
 git:
   depth: 1
 
 before_script:
+  - curl -Lo rq.tar.gz https://github.com/dflemstr/rq/releases/download/v1.0.2/rq-v1.0.2-x86_64-unknown-linux-gnu.tar.gz
+  - tar zxvpf rq.tar.gz
   - go get -v -u golang.org/x/lint/golint
+  - ( cd ~/gopath/src; mkdir -p github.com/Kong; cd github.com/Kong; git clone https://github.com/kong/go-pdk && cd go-pdk && go install )
+  - ( cd ~/gopath/src/github.com/Kong; git clone https://github.com/kong/go-plugins && cd go-plugins && make && cp *.so ../go-pluginserver )
 
 script:
   - golint ./...
+  - go get
+  - go build
+  - PATH=.:$PATH ./test.sh
