@@ -54,7 +54,7 @@ RPC Methods:
  - `plugin.StepConsumer()`
  - `plugin.StepMemoryStats()`
 
-To start an event, call `plutin.HandleEvent()` with an instance id and event name.  The return data
+To start an event, call `plugin.HandleEvent()` with an instance id and event name.  The return data
 will include the event ID and either a `"ret"` string or callback request and parameters.  If the
 callback response is a primitive type (number, string, simple dictionary) return it via the
 `plugin.Step()` method, including the event ID.  To return an error, use `plugin.StepError()`.
