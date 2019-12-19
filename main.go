@@ -13,11 +13,38 @@ import (
 )
 
 var kongPrefix = flag.String("kong-prefix", "/usr/local/kong", "Kong prefix path (specified by the `-p` argument commonly used in the `kong` cli)")
+var dump = flag.String("dump-plugin-info", "", "Dump info about `plugin` as a MessagePack object")
+var pluginsDir = flag.String("plugins-directory", "", "Set directory `path` where to search plugins")
+
 var socket string
 
 func init() {
 	flag.Parse()
 	socket = *kongPrefix + "/" + "go_pluginserver.sock"
+
+	if *kongPrefix == "" && *dump == "" {
+		flag.Usage()
+		os.Exit(2)
+	}
+}
+
+func dumpInfo() {
+	s := newServer()
+
+	info := PluginInfo{}
+	err := s.GetPluginInfo(*dump, &info)
+	if err != nil {
+		log.Printf("%s", err)
+	}
+
+	var handle codec.MsgpackHandle
+	handle.ReaderBufferSize = 4096
+	handle.WriterBufferSize = 4096
+	handle.RawToString = true
+	handle.MapType = reflect.TypeOf(map[string]interface{}(nil))
+
+	enc := codec.NewEncoder(os.Stdout, &handle)
+	_ = enc.Encode(info)
 }
 
 func runServer(listener net.Listener) {
@@ -42,7 +69,7 @@ func runServer(listener net.Listener) {
 	}
 }
 
-func main() {
+func startServer() {
 	err := os.Remove(socket)
 	if err != nil && !os.IsNotExist(err) {
 		log.Printf(`removing "%s": %s`, kongPrefix, err)
@@ -58,4 +85,14 @@ func main() {
 	rpc.RegisterName("plugin", newServer())
 
 	runServer(listener)
+}
+
+func main() {
+	if *dump != "" {
+		dumpInfo()
+	}
+
+	if socket != "" {
+		startServer()
+	}
 }

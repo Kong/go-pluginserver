@@ -26,11 +26,21 @@ type PluginServer struct {
 
 // Create a new server context.
 func newServer() *PluginServer {
-	return &PluginServer{
+	s := PluginServer{
 		plugins:   map[string]*pluginData{},
 		instances: map[int]*instanceData{},
 		events:    map[int]*eventData{},
 	}
+
+	if *pluginsDir == "" {
+		if dir, err := os.Getwd(); err == nil {
+			s.pluginsDir = dir
+		}
+	} else {
+		s.pluginsDir = *pluginsDir
+	}
+
+	return &s
 }
 
 // SetPluginDir tells the server where to find the plugins.
@@ -47,7 +57,7 @@ func (s *PluginServer) SetPluginDir(dir string, reply *string) error {
 // --- status --- //
 
 type ServerStatusData struct {
-	Pid int
+	Pid     int
 	Plugins map[string]PluginStatusData
 }
 
@@ -56,7 +66,7 @@ func (s *PluginServer) GetStatus(n int, reply *ServerStatusData) error {
 	defer s.lock.Unlock()
 
 	*reply = ServerStatusData{
-		Pid: os.Getpid(),
+		Pid:     os.Getpid(),
 		Plugins: make(map[string]PluginStatusData),
 	}
 
@@ -213,8 +223,8 @@ func getSchemaDict(t reflect.Type) schemaDict {
 // Information obtained from a plugin's compiled code.
 type PluginInfo struct {
 	Name     string     // plugin name
-	ModTime  time.Time  // plugin file modification time
-	LoadTime time.Time  // plugin load time
+	ModTime  time.Time  `codec:",omitempty"` // plugin file modification time
+	LoadTime time.Time  `codec:",omitempty"` // plugin load time
 	Phases   []string   // events it can handle
 	Version  string     // version number
 	Priority int        // priority info
