@@ -12,15 +12,12 @@ import (
 	"reflect"
 )
 
-var socket = flag.String("socket", "", "Socket to listen into")
+var kongPrefix = flag.String("kong-prefix", "/usr/local/kong", "Kong prefix path (specified by the `-p` argument commonly used in the `kong` cli)")
+var socket string
 
 func init() {
 	flag.Parse()
-
-	if *socket == "" {
-		flag.Usage()
-		os.Exit(2)
-	}
+	socket = *kongPrefix + "/" + "go_pluginserver.sock"
 }
 
 func runServer(listener net.Listener) {
@@ -46,13 +43,13 @@ func runServer(listener net.Listener) {
 }
 
 func main() {
-	err := os.Remove(*socket)
+	err := os.Remove(socket)
 	if err != nil && !os.IsNotExist(err) {
-		log.Printf(`removing "%s": %s`, socket, err)
+		log.Printf(`removing "%s": %s`, kongPrefix, err)
 		return
 	}
 
-	listener, err := net.Listen("unix", *socket)
+	listener, err := net.Listen("unix", socket)
 	if err != nil {
 		log.Printf(`listen("%s"): %s`, socket, err)
 		return
