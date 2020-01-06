@@ -12,14 +12,14 @@ rq --help >/dev/null
 
 echo "pwd: $PWD"
 
-SOCKET='sock'
+SOCKET='go_pluginserver.sock'
 
 if pgrep go-pluginserver -l; then
 	PREVIOUS_SERVER="yes"
 else
 	echo "starting server..."
 	[ -S "$SOCKET" ] && rm "$SOCKET"
-	./go-pluginserver -socket "$SOCKET" &
+	./go-pluginserver -kong-prefix . &
 	pgrep go-pluginserver -l
 	sleep 0.1s
 fi
