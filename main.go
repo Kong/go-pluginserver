@@ -12,7 +12,7 @@ import (
 	"reflect"
 )
 
-var kongPrefix = flag.String("kong-prefix", "/usr/local/kong", "Kong prefix path (specified by the `-p` argument commonly used in the `kong` cli)")
+var kongPrefix = flag.String("kong-prefix", "/usr/local/kong", "Kong prefix path (specified by the -p argument commonly used in the kong cli)")
 var dump = flag.String("dump-plugin-info", "", "Dump info about `plugin` as a MessagePack object")
 var pluginsDir = flag.String("plugins-directory", "", "Set directory `path` where to search plugins")
 
@@ -90,6 +90,7 @@ func startServer() {
 func main() {
 	if *dump != "" {
 		dumpInfo()
+		os.Exit(0)
 	}
 
 	if socket != "" {
