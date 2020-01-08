@@ -4,17 +4,25 @@ package main
 
 import (
 	"flag"
+	"runtime"
 	"github.com/ugorji/go/codec"
 	"log"
 	"net"
 	"net/rpc"
 	"os"
 	"reflect"
+	"fmt"
 )
 
-var kongPrefix = flag.String("kong-prefix", "/usr/local/kong", "Kong prefix path (specified by the -p argument commonly used in the kong cli)")
-var dump = flag.String("dump-plugin-info", "", "Dump info about `plugin` as a MessagePack object")
-var pluginsDir = flag.String("plugins-directory", "", "Set directory `path` where to search plugins")
+var version = "development"
+
+/* flags */
+var (
+	kongPrefix = flag.String("kong-prefix", "/usr/local/kong", "Kong prefix path (specified by the -p argument commonly used in the kong cli)")
+	dump = flag.String("dump-plugin-info", "", "Dump info about `plugin` as a MessagePack object")
+	pluginsDir = flag.String("plugins-directory", "", "Set directory `path` where to search plugins")
+	showVersion = flag.Bool("version", false, "Print binary and runtime version")
+)
 
 var socket string
 
@@ -26,6 +34,10 @@ func init() {
 		flag.Usage()
 		os.Exit(2)
 	}
+}
+
+func printVersion() {
+	fmt.Printf("Version: %s\nRuntime Version: %s\n", version, runtime.Version())
 }
 
 func dumpInfo() {
@@ -88,6 +100,11 @@ func startServer() {
 }
 
 func main() {
+	if *showVersion == true {
+		printVersion()
+		os.Exit(0)
+	}
+
 	if *dump != "" {
 		dumpInfo()
 		os.Exit(0)
