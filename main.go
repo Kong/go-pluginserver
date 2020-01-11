@@ -12,6 +12,7 @@ import (
 	"os"
 	"reflect"
 	"fmt"
+	"time"
 )
 
 var version = "development"
@@ -99,6 +100,10 @@ func startServer() {
 	runServer(listener)
 }
 
+func isParentAlive() bool {
+	return os.Getppid() != 1 // assume ppid 1 means process was adopted by init
+}
+
 func main() {
 	if *showVersion == true {
 		printVersion()
@@ -111,6 +116,17 @@ func main() {
 	}
 
 	if socket != "" {
+		go func() {
+			for {
+				if ! isParentAlive() {
+					log.Printf("Kong exited; shutting down...")
+					os.Exit(0)
+				}
+
+				time.Sleep(1 * time.Second)
+			}
+		}()
+
 		startServer()
 	}
 }
