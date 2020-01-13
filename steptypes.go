@@ -24,6 +24,18 @@ func (s *PluginServer) StepError(in StepErrorData, out *StepData) error {
 	}, out)
 }
 
+type StepMultiMapData struct {
+	EventId int
+	Data    map[string][]string
+}
+
+func (s *PluginServer) StepMultiMap(in StepMultiMapData, out *StepData) error {
+	return s.Step(StepData{
+		EventId: in.EventId,
+		Data:    in.Data,
+	}, out)
+}
+
 type StepCredentialData struct {
 	EventId int
 	Data    client.AuthenticatedCredential
