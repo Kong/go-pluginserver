@@ -256,12 +256,12 @@ func (s *PluginServer) GetPluginInfo(name string, info *PluginInfo) error {
 
 	v, _ := plug.code.Lookup("Version")
 	if v != nil {
-		info.Version = v.(string)
+		info.Version = *v.(*string)
 	}
 
 	prio, _ := plug.code.Lookup("Priority")
 	if prio != nil {
-		info.Priority = prio.(int)
+		info.Priority = *prio.(*int)
 	}
 
 	// 	st, _ := getSchemaDict(reflect.TypeOf(plug.config).Elem())
