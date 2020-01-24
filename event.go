@@ -59,12 +59,16 @@ func (s *PluginServer) HandleEvent(in StartEventData, out *StepData) error {
 	go func() {
 		_ = <-ipc
 		h(event.pdk)
-		ipc <- "ret"
+
+		func() {
+			defer func() { recover() }()
+			ipc <- "ret"
+		}()
 
 		s.lock.Lock()
+		defer s.lock.Unlock()
 		event.instance.lastEvent = time.Now()
 		delete(s.events, event.id)
-		s.lock.Unlock()
 	}()
 
 	ipc <- "run" // kickstart the handler
