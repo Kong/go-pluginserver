@@ -193,7 +193,7 @@ func getSchemaDict(t reflect.Type) schemaDict {
 		return schemaDict{
 			"type":   "map",
 			"keys":   kType,
-                        "values": vType,
+			"values": vType,
 		}
 
 	case reflect.Struct:
