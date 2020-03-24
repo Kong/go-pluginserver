@@ -174,14 +174,14 @@ func getSchemaDict(t reflect.Type) schemaDict {
 	case reflect.Float32, reflect.Float64:
 		return schemaDict{"type": "number"}
 
-	case reflect.Array:
+	case reflect.Slice:
 		elemType := getSchemaDict(t.Elem())
 		if elemType == nil {
 			break
 		}
 		return schemaDict{
 			"type":     "array",
-			"elements": schemaDict{"type": elemType},
+			"elements": elemType,
 		}
 
 	case reflect.Map:
