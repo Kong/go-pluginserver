@@ -1,6 +1,16 @@
 # Table of Contents
 
+- [v0.5.0](#v050)
+- [v0.4.0](#v040)
 - [v0.3.2](#v032)
+
+## [v0.5.0]
+
+- Bump go-pdk to v0.5.0
+
+## [v0.4.0]
+
+- Bump go-pdk to v0.4.0
 
 ## [v0.3.2]
 
@@ -14,4 +24,6 @@
 
 [Back to TOC](#table-of-contents)
 
+[v0.5.0]: https://github.com/Kong/go-pluginserver/compare/v0.4.0..v0.5.0
+[v0.4.0]: https://github.com/Kong/go-pluginserver/compare/v0.3.2..v0.4.0
 [v0.3.2]: https://github.com/Kong/go-pluginserver/compare/v0.3.1..v0.3.2
