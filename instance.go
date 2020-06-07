@@ -20,29 +20,26 @@ type instanceData struct {
 }
 
 type (
-	certificater interface{ Certificate(*pdk.PDK) }
-	rewriter     interface{ Rewrite(*pdk.PDK) }
-	accesser     interface{ Access(*pdk.PDK) }
-	headerFilter interface{ HeaderFilter(*pdk.PDK) }
-	bodyFilter   interface{ BodyFilter(*pdk.PDK) }
-	prereader    interface{ Preread(*pdk.PDK) }
-	logger       interface{ Log(*pdk.PDK) }
+	certificater   interface{ Certificate(*pdk.PDK) }
+	rewriter       interface{ Rewrite(*pdk.PDK) }
+	accesser       interface{ Access(*pdk.PDK) }
+	responser      interface{ Response(*pdk.PDK) }
+	prereader      interface{ Preread(*pdk.PDK) }
+	logger         interface{ Log(*pdk.PDK) }
 )
 
 func getHandlers(config interface{}) map[string]func(kong *pdk.PDK) {
 	handlers := map[string]func(kong *pdk.PDK){}
 
-	if h, ok := config.(certificater); ok { handlers["certificate"]   = h.Certificate  }
-	if h, ok := config.(rewriter)    ; ok { handlers["rewrite"]       = h.Rewrite      }
-	if h, ok := config.(accesser)    ; ok { handlers["access"]        = h.Access       }
-	if h, ok := config.(headerFilter); ok { handlers["header_filter"] = h.HeaderFilter }
-	if h, ok := config.(bodyFilter)  ; ok { handlers["body_filter"]   = h.BodyFilter   }
-	if h, ok := config.(prereader)   ; ok { handlers["preread"]       = h.Preread      }
-	if h, ok := config.(logger)      ; ok { handlers["log"]           = h.Log          }
+	if h, ok := config.(certificater); ok { handlers["certificate"] = h.Certificate }
+	if h, ok := config.(rewriter)    ; ok { handlers["rewrite"]     = h.Rewrite     }
+	if h, ok := config.(accesser)    ; ok { handlers["access"]      = h.Access      }
+	if h, ok := config.(responser)   ; ok { handlers["response"]    = h.Response    }
+	if h, ok := config.(prereader)   ; ok { handlers["preread"]     = h.Preread     }
+	if h, ok := config.(logger)      ; ok { handlers["log"]         = h.Log         }
 
 	return handlers
 }
-
 
 func (s *PluginServer) expireInstances() error {
 	const instanceTimeout = 60
@@ -130,7 +127,6 @@ func (s *PluginServer) StartInstance(config PluginConfig, status *InstanceStatus
 	}
 
 	log.Printf("Started instance %#v:%v", config.Name, instance.id)
-
 
 	return nil
 }
