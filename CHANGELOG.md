@@ -1,8 +1,16 @@
 # Table of Contents
 
+- [v0.5.0](#v050)
 - [v0.4.0](#v040)
 - [v0.3.3](#v033)
 - [v0.3.2](#v032)
+
+## [v0.5.0]
+
+> Released 2020/06/17
+
+- Add support for Header and Body filter phases, allowing manipulation of
+  response data
 
 ## [v0.4.0]
 
@@ -28,6 +36,7 @@
 
 [Back to TOC](#table-of-contents)
 
+[v0.5.0]: https://github.com/Kong/go-pluginserver/compare/v0.4.0..v0.5.0
 [v0.4.0]: https://github.com/Kong/go-pluginserver/compare/v0.3.3..v0.4.0
 [v0.3.3]: https://github.com/Kong/go-pluginserver/compare/v0.3.2..v0.3.3
 [v0.3.2]: https://github.com/Kong/go-pluginserver/compare/v0.3.1..v0.3.2
