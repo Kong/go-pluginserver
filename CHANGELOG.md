@@ -7,10 +7,22 @@
 
 ## [v0.5.0]
 
-> Released 2020/06/17
+> Released 2020/06/22
 
-- Add support for Header and Body filter phases, allowing manipulation of
-  response data
+### Additions
+
+- Add support for a `Response` phase, allowing manipulation of
+  response data.
+  [#32](https://github.com/Kong/go-pluginserver/pull/32)
+
+### Fixes
+
+- Fix map representation in plugin configuration.
+  [#19](https://github.com/Kong/go-pluginserver/pull/19)
+  Thanks, [melchor629](https://github.com/melchor629) for the patch!
+- Fix array representation in plugin configuration.
+  [#20](https://github.com/Kong/go-pluginserver/pull/20)
+  Thanks, [longquan0104](https://github.com/longquan0104) for the patch!
 
 ## [v0.4.0]
 
