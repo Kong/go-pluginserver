@@ -181,7 +181,7 @@ func getSchemaDict(t reflect.Type) schemaDict {
 		}
 		return schemaDict{
 			"type":     "array",
-			"elements": schemaDict{"type": elemType},
+			"elements": elemType,
 		}
 
 	case reflect.Map:
