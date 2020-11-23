@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"strings"
 	"time"
+	"github.com/Kong/go-pluginserver/kong_plugin_protocol"
 )
 
 var version = "development"
@@ -91,11 +92,6 @@ func dumpAll() {
 }
 
 func runServer(listener net.Listener) {
-	var handle codec.MsgpackHandle
-	handle.ReaderBufferSize = 4096
-	handle.WriterBufferSize = 4096
-	handle.RawToString = true
-	handle.MapType = reflect.TypeOf(map[string]interface{}(nil))
 
 	for {
 		conn, err := listener.Accept()
@@ -103,11 +99,10 @@ func runServer(listener net.Listener) {
 			return
 		}
 
-		enc := codec.NewEncoder(conn, &handle)
-		_ = enc.Encode([]interface{}{2, "serverPid", os.Getpid()})
+		// TODO: push PID notification
 
-		rpcCodec := codec.MsgpackSpecRpc.ServerCodec(conn, &handle)
-		go rpc.ServeCodec(rpcCodec)
+		pbCodec := kong_plugin_protocol.NewCodec(conn)
+		go rpc.ServeCodec(pbCodec)
 	}
 }
 
