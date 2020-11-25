@@ -6,9 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"github.com/ugorji/go/codec"
+	"io"
 	"log"
 	"net"
-	"net/rpc"
+// // 	"net/rpc"
 	"os"
 	"path"
 	"path/filepath"
@@ -16,7 +17,6 @@ import (
 	"runtime"
 	"strings"
 	"time"
-	"github.com/Kong/go-pluginserver/kong_plugin_protocol"
 )
 
 var version = "development"
@@ -91,8 +91,7 @@ func dumpAll() {
 	_ = enc.Encode(infos)
 }
 
-func runServer(listener net.Listener) {
-
+func runServer(listener net.Listener, s *PluginServer) {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
@@ -101,9 +100,22 @@ func runServer(listener net.Listener) {
 
 		// TODO: push PID notification
 
-		pbCodec := kong_plugin_protocol.NewCodec(conn)
-		go rpc.ServeCodec(pbCodec)
+		pbCodec := NewCodec(conn)
+		go serveCodec(pbCodec, s)
 	}
+}
+
+func serveCodec(pbCodec PluginCodec, s *PluginServer) {
+	for {
+		err := pbCodec.Handle(s)
+		if err != nil {
+			if err != io.EOF {
+				log.Println("rpc:", err)
+			}
+			break
+		}
+	}
+	pbCodec.Close()
 }
 
 func startServer() {
@@ -119,8 +131,8 @@ func startServer() {
 		return
 	}
 
-	rpc.RegisterName("plugin", newServer())
-	runServer(listener)
+// 	rpc.RegisterName("plugin", newServer())
+	runServer(listener, newServer())
 }
 
 func isParentAlive() bool {
