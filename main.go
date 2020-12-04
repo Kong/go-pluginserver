@@ -10,8 +10,11 @@ import (
 	"net"
 	"net/rpc"
 	"os"
+	"path"
+	"path/filepath"
 	"reflect"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -19,10 +22,11 @@ var version = "development"
 
 /* flags */
 var (
-	kongPrefix  = flag.String("kong-prefix", "/usr/local/kong", "Kong prefix path (specified by the -p argument commonly used in the kong cli)")
-	dump        = flag.String("dump-plugin-info", "", "Dump info about `plugin` as a MessagePack object")
-	pluginsDir  = flag.String("plugins-directory", "", "Set directory `path` where to search plugins")
-	showVersion = flag.Bool("version", false, "Print binary and runtime version")
+	kongPrefix     = flag.String("kong-prefix", "/usr/local/kong", "Kong prefix path (specified by the -p argument commonly used in the kong cli)")
+	dump           = flag.String("dump-plugin-info", "", "Dump info about `plugin` as a MessagePack object")
+	dumpAllPlugins = flag.Bool("dump-all-plugins", false, "Dump info about all available plugins")
+	pluginsDir     = flag.String("plugins-directory", "", "Set directory `path` where to search plugins")
+	showVersion    = flag.Bool("version", false, "Print binary and runtime version")
 )
 
 var socket string
@@ -60,6 +64,32 @@ func dumpInfo() {
 	_ = enc.Encode(info)
 }
 
+func dumpAll() {
+	s := newServer()
+
+	pluginPaths, err := filepath.Glob(path.Join(s.pluginsDir, "/*.so"))
+	if err != nil {
+		log.Printf("can't get plugin names from %s: %s", s.pluginsDir, err)
+		return
+	}
+
+	infos := make([]PluginInfo, len(pluginPaths))
+
+	for i, pluginPath := range pluginPaths {
+		pluginName := strings.TrimSuffix(path.Base(pluginPath), ".so")
+
+		err = s.GetPluginInfo(pluginName, &infos[i])
+		if err != nil {
+			log.Printf("can't load Plugin %s: %s", pluginName, err)
+			continue
+		}
+	}
+
+	var handle codec.JsonHandle
+	enc := codec.NewEncoder(os.Stdout, &handle)
+	_ = enc.Encode(infos)
+}
+
 func runServer(listener net.Listener) {
 	var handle codec.MsgpackHandle
 	handle.ReaderBufferSize = 4096
@@ -70,7 +100,6 @@ func runServer(listener net.Listener) {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Printf("accept(): %s", err)
 			return
 		}
 
@@ -96,7 +125,6 @@ func startServer() {
 	}
 
 	rpc.RegisterName("plugin", newServer())
-
 	runServer(listener)
 }
 
@@ -112,6 +140,11 @@ func main() {
 
 	if *dump != "" {
 		dumpInfo()
+		os.Exit(0)
+	}
+
+	if *dumpAllPlugins {
+		dumpAll()
 		os.Exit(0)
 	}
 

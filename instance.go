@@ -115,7 +115,6 @@ func (s *PluginServer) StartInstance(config PluginConfig, status *InstanceStatus
 	s.instances[instance.id] = &instance
 
 	plug.lastStartInstance = instance.startTime
-	s.expireInstances()
 
 	s.lock.Unlock()
 
