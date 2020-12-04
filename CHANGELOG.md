@@ -1,9 +1,18 @@
 # Table of Contents
 
+- [v0.6.0](#v060)
 - [v0.5.0](#v050)
 - [v0.4.0](#v040)
 - [v0.3.3](#v033)
 - [v0.3.2](#v032)
+
+## [v0.6.0]
+
+### Additions
+
+- New CLI flag `-dump-all-plugins` to dump info from all managed
+  plugins.
+  [#38](https://github.com/Kong/go-pluginserver/pull/38)
 
 ## [v0.5.0]
 
@@ -48,6 +57,7 @@
 
 [Back to TOC](#table-of-contents)
 
+[v0.6.0]: https://github.com/Kong/go-pluginserver/compare/v0.5.0..v0.6.0
 [v0.5.0]: https://github.com/Kong/go-pluginserver/compare/v0.4.0..v0.5.0
 [v0.4.0]: https://github.com/Kong/go-pluginserver/compare/v0.3.3..v0.4.0
 [v0.3.3]: https://github.com/Kong/go-pluginserver/compare/v0.3.2..v0.3.3
