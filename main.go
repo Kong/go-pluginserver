@@ -6,9 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"github.com/ugorji/go/codec"
+	"io"
 	"log"
 	"net"
-	"net/rpc"
+// // 	"net/rpc"
 	"os"
 	"path"
 	"path/filepath"
@@ -90,25 +91,31 @@ func dumpAll() {
 	_ = enc.Encode(infos)
 }
 
-func runServer(listener net.Listener) {
-	var handle codec.MsgpackHandle
-	handle.ReaderBufferSize = 4096
-	handle.WriterBufferSize = 4096
-	handle.RawToString = true
-	handle.MapType = reflect.TypeOf(map[string]interface{}(nil))
-
+func runServer(listener net.Listener, s *PluginServer) {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
 			return
 		}
 
-		enc := codec.NewEncoder(conn, &handle)
-		_ = enc.Encode([]interface{}{2, "serverPid", os.Getpid()})
+		// TODO: push PID notification
 
-		rpcCodec := codec.MsgpackSpecRpc.ServerCodec(conn, &handle)
-		go rpc.ServeCodec(rpcCodec)
+		pbCodec := NewCodec(conn)
+		go serveCodec(pbCodec, s)
 	}
+}
+
+func serveCodec(pbCodec PluginCodec, s *PluginServer) {
+	for {
+		err := pbCodec.Handle(s)
+		if err != nil {
+			if err != io.EOF {
+				log.Println("rpc:", err)
+			}
+			break
+		}
+	}
+	pbCodec.Close()
 }
 
 func startServer() {
@@ -124,8 +131,8 @@ func startServer() {
 		return
 	}
 
-	rpc.RegisterName("plugin", newServer())
-	runServer(listener)
+// 	rpc.RegisterName("plugin", newServer())
+	runServer(listener, newServer())
 }
 
 func isParentAlive() bool {
