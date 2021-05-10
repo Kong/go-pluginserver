@@ -6,6 +6,7 @@ import (
 	"path"
 	"plugin"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -209,6 +210,46 @@ func getSchemaDict(t reflect.Type) schemaDict {
 			if name == "" {
 				name = strings.ToLower(field.Name)
 			}
+			required := field.Tag.Get("required")
+			if required == "true" {
+				typeDecl["required"] = true
+			}
+
+			defaultValue := field.Tag.Get("default")
+			if defaultValue != "" {
+				switch field.Type.Kind() {
+				case reflect.String:
+					typeDecl["default"] = defaultValue
+				case reflect.Bool:
+					value := false
+					if defaultValue == "true" {
+						value = true
+					}
+					typeDecl["default"] = value
+				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+					value, err := strconv.ParseInt(defaultValue, 10, 64)
+					if err != nil {
+						break
+					}
+					typeDecl["default"] = value
+
+				case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+					value, err := strconv.ParseUint(defaultValue, 10, 64)
+					if err != nil {
+						break
+					}
+					typeDecl["default"] = value
+
+				case reflect.Float32, reflect.Float64:
+					value, err := strconv.ParseFloat(defaultValue, field.Type.Bits())
+					if err != nil {
+						break
+					}
+					typeDecl["default"] = value
+
+				}
+			}
+
 			fieldsArray = append(fieldsArray, schemaDict{name: typeDecl})
 		}
 		return schemaDict{
