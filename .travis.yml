@@ -18,7 +18,7 @@ before_script:
   - tar zxvpf rq.tar.gz
   - go get -v -u golang.org/x/lint/golint
   - ( cd ~/gopath/src; mkdir -p github.com/Kong; cd github.com/Kong; git clone https://github.com/kong/go-pdk && cd go-pdk && go install )
-  - ( cd ~/gopath/src/github.com/Kong; git clone https://github.com/kong/go-plugins && cd go-plugins && make && cp *.so ../go-pluginserver )
+  - ( cd ~/gopath/src/github.com/Kong; git clone https://github.com/kong/go-plugins && cd go-plugins && git checkout v0.5.0 && make && cp *.so ../go-pluginserver )
 
 script:
   - golint ./...
