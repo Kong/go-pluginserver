@@ -71,15 +71,15 @@ msg '[0, 19, "plugin.GetStatus", []]'
 assert_noerr
 assert_fld_match 'Plugins' '{}'
 
-msg '[0, 19, "plugin.GetPluginInfo", ["go-hello"]]'
+msg '[0, 19, "plugin.GetPluginInfo", ["go-hello-lm"]]'
 assert_noerr
 
-msg '[0, 19, "plugin.StartInstance", [{"Name":"go-hello", "Config":"{\"message\":\"howdy\"}"}]]'
+msg '[0, 19, "plugin.StartInstance", [{"Name":"go-hello-lm", "Config":"{\"message\":\"howdy\"}"}]]'
 assert_noerr
 helloId=$(query_result '."Id"')
 echo "helloId: $helloId"
 
-msg '[0, 19, "plugin.StartInstance", [{"Name":"go-log", "Config":"{\"reopen\":false, \"path\":\"/some/where/else/\"}"}]]'
+msg '[0, 19, "plugin.StartInstance", [{"Name":"go-log-lm", "Config":"{\"reopen\":false, \"path\":\"/some/where/else/\"}"}]]'
 assert_noerr
 logId=$(query_result '."Id"')
 echo "logId: $logId"
@@ -143,8 +143,8 @@ assert_noerr
 
 msg '[0, 19, "plugin.GetStatus", []]'
 assert_noerr
-assert_fld_match 'Plugins["go-hello"]' '"Name": "go-hello"'
-assert_fld_match 'Plugins["go-log"]' '"Name": "go-log"'
+assert_fld_match 'Plugins["go-hello-lm"]' '"Name": "go-hello-lm"'
+assert_fld_match 'Plugins["go-log-lm"]' '"Name": "go-log-lm"'
 
 
 if [ ! -v PREVIOUS_SERVER ]; then
