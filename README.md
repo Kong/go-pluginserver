@@ -1,15 +1,23 @@
 go-pluginserver
 ===
 
+DEPRECATED
+---
+
+**NOTE**: the external go-pluginserver is deprecated, as of Kong 2.8.0, in favor
+of the new embedded server style. While existing usage of the old style will still
+be supported in Kong 2.8.0, users are encouraged to upgrade, as it will be removed
+in Kong 3.0.0. Check out [the Docs](https://docs.konghq.com/gateway/latest/reference/external-plugins/#updating-from-legacy-to-embedded-server-style) for upgrade steps.
+
+Pluginserver
+--
+
 Runs Kong plugins written in Go.  Implemented as a standalone MessagePack-RPC server.
 
 There's no explicit state associated with the client connections, so the same plugins,
 instances and even events could be shared with several clients, or a single client can
 use more than one connection from a pool.  For the same reason, plugin instances and
 events could survive client disconnections, if the client reconnects when necessary.
-
-Pluginserver
---
 
 Holds the running server status.  Starts and stops with the server process.
 
