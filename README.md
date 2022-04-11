@@ -4,10 +4,10 @@ go-pluginserver
 DEPRECATED
 ---
 
-**NOTE**: the external go-pluginserver is deprecated, as of Kong 2.8.0, in favor
-of the new embedded server style. While existing usage of the old style will still
-be supported in Kong 2.8.0, users are encouraged to upgrade, as it will be removed
-in Kong 3.0.0. Check out [the Docs](https://docs.konghq.com/gateway/latest/reference/external-plugins/#updating-from-legacy-to-embedded-server-style) for upgrade steps.
+**NOTE**: the external go-pluginserver is deprecated, and no longer maintained. 
+For Kong 2.8.0, while existing usage of the old style will still be supported,
+users are encouraged to upgrade to the new embedded server style.
+And it will be no longer supported since Kong 3.0.0. Check out [the Docs](https://docs.konghq.com/gateway/latest/reference/external-plugins/#updating-from-legacy-to-embedded-server-style) for upgrade steps.
 
 Pluginserver
 --
